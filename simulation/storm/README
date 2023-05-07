@@ -1,0 +1,13 @@
+# Example Usage
+
+```bash
+python datagen.py npc -n 1000 -i simulation_data/v3 -o data/v3/ --workers 8
+```
+Runs Thunderstorm simulation on all the nuclear pore complex (NPC) structures present in the input directory (`simulation_data/v3`), with 8 parallel workers and saves them to the output directory (`data/v3/`). The rest of the parameters are set to default values, as set in `config.py`. The parameters can be changed by passing them as arguments to the script (use `python datagen.py -h` to see the list of parameters).
+
+```bash
+python datagen.py vesicle -n 1000 -i simulation_data/v3 -o data/v3/ --workers 8
+```
+does the same for vesicle structures.
+
+The code expects the structures to be named as `{structure_name}_{i}.parquet`. i goes from 0 to N, N <= n.
