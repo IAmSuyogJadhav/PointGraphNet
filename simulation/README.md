@@ -1,5 +1,5 @@
 # Simulator
-Simulates and saves raw point cloud data for nuclear pore complexes (NPCs), vesicles, microtubules, actins, and mitochondria. Edit the configuration for each of the structures in `config.py`. 
+Simulates and saves raw point cloud data for nuclear pore complexes (NPCs), vesicles, microtubules, actins, and mitochondria. Edit the configuration for each of the structures in `config.py`. The simulator is sped up using multiprocessing, and you can specify the number of workers to use. The simulator also supports GPU computation if you have an NVIDIA GPU and `cupy` installed.
 
 ## ThunderSTORM Simulation
 The point cloud generated with the simulator can be used with a PSF simulator such as testSTORM to get an SMLM stack which you can then process using ThunderSTORM. Alternatively, this simulator also provides the ability to simulate the effect of ThunderSTORM directly. This option is enabled by default, and you will find the ThunderSTORM-simulated point clouds in the columns 'x', 'y', and 'z'. ThunderSTORM simulation is done by adding a random deviation to all the points, then adding a foreground noise (closer to the structures) and finally a background noise (all over the available space). Edit the noise level and other parameters for ThunderSTORM simulation in `storm/config.py`.
