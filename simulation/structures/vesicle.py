@@ -4,7 +4,9 @@ from .helper import _get_sphere
 from tqdm.auto import tqdm
 
 
-def get_vesicle(params: dict, disable_tqdm: bool = False, with_normals: bool=False) -> pd.DataFrame:
+def get_vesicle(
+    params: dict, disable_tqdm: bool = False, with_normals: bool = False
+) -> pd.DataFrame:
     """Simulate vesicles with the given parameters.
 
     Args:
@@ -51,7 +53,9 @@ def get_vesicle(params: dict, disable_tqdm: bool = False, with_normals: bool=Fal
         area = 4 * np.pi * (r**2)
         points = int(area * density)
 
-        ves = _get_sphere(center, r, points, zlow, zhigh, max_xy=max_xy, with_normals=with_normals)
+        ves = _get_sphere(
+            center, r, points, zlow, zhigh, max_xy=max_xy, with_normals=with_normals
+        )
         vesicles.append(ves)
 
     # Concatenate the vesicles and add instance ids
@@ -60,9 +64,12 @@ def get_vesicle(params: dict, disable_tqdm: bool = False, with_normals: bool=Fal
     points = np.concatenate([points, instance_ids[:, None]], axis=1)
 
     # Convert to pandas dataframe
-    columns = ["x", "y", "z"] + \
-        (["nx", "ny", "nz", "theta", "phi"] if with_normals else []) + ["instance_id"]
+    columns = (
+        ["x", "y", "z"]
+        + (["nx", "ny", "nz", "theta", "phi"] if with_normals else [])
+        + ["instance_id"]
+    )
     points = pd.DataFrame(points, columns=columns).reset_index(drop=True)
-    points['label'] = 'vesicle'  # add label column
+    points["label"] = "vesicle"  # add label column
 
     return points

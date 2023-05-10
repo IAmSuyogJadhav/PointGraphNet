@@ -22,7 +22,17 @@ def load_file(file):
 
 
 class Dataset(torch.utils.data.Dataset):
-    def __init__(self, files, max_cache_size=-1, sample_size=-1, replace=False, no_torch=False, device=None, infer_mode=False, n_jobs=8):
+    def __init__(
+        self,
+        files,
+        max_cache_size=-1,
+        sample_size=-1,
+        replace=False,
+        no_torch=False,
+        device=None,
+        infer_mode=False,
+        n_jobs=8,
+    ):
         """Dataset for loading point clouds.
 
         Args:
@@ -87,11 +97,13 @@ class Dataset(torch.utils.data.Dataset):
                     pass
 
             # Sample points
-            if self.sample_size > 0:  # No sampling for sample_size <= 0; sampling needed for unequally sized point clouds to form batches
+            if (
+                self.sample_size > 0
+            ):  # No sampling for sample_size <= 0; sampling needed for unequally sized point clouds to form batches
                 df = df.sample(
                     self.sample_size, random_state=self.seed, replace=self.replace
                 ).reset_index(drop=True)
-            
+
             # Create graph
             graph = PointsGraph(
                 df=df,
@@ -101,7 +113,7 @@ class Dataset(torch.utils.data.Dataset):
                 infer_mode=self.infer_mode,
                 n_jobs=self.n_jobs,
             )
-            
+
             # # Add to cache, if not full, otherwise don't
             # if len(self.cache) < self.max_cache_size:
             #     self.cache[idx] = graph
@@ -119,7 +131,6 @@ class Dataset(torch.utils.data.Dataset):
         elif isinstance(idx, list):
             return [self[i] for i in idx]
 
-
     def __len__(self):
         return len(self.files)
 
@@ -128,7 +139,18 @@ class Dataset(torch.utils.data.Dataset):
     #     np.random.shuffle(self.idxs)
 
 
-def get_dataset(data_path, classes, max_cache_size=1000, sample_size=-1, replace=False, pick_percent=1.0, no_torch=False, device=None, infer_mode=False, n_jobs=8):
+def get_dataset(
+    data_path,
+    classes,
+    max_cache_size=1000,
+    sample_size=-1,
+    replace=False,
+    pick_percent=1.0,
+    no_torch=False,
+    device=None,
+    infer_mode=False,
+    n_jobs=8,
+):
     """Get pytorch dataset for the given classes and data path.
 
     Args:
@@ -154,11 +176,11 @@ def get_dataset(data_path, classes, max_cache_size=1000, sample_size=-1, replace
             files_ = []
             files_ += glob.glob(os.path.join(f"{path}", f"{cls}_*.parquet"))
             files_ += glob.glob(os.path.join(f"{path}", f"{cls}_*.csv"))
-            
+
             # Pick a percent of files
-            files += files_[:int(len(files_) * pick_percent)]
+            files += files_[: int(len(files_) * pick_percent)]
     print(f"Found {len(files)} files.")
-    
+
     return Dataset(
         files=files,
         max_cache_size=max_cache_size,
@@ -189,29 +211,53 @@ class Encoder(nn.Module):
         assert in_channels >= 3, "Input channels must be >=3"
         extra_ch = in_channels - 3  # Number of extra channels
         self.sa1 = pnet2.PointNetSetAbstractionMsg(
-            1024, [0.05, 0.1], [16, 32], extra_ch, [[16, 16, 32], [32, 32, 64]]
-            , dtype=dtype
+            1024,
+            [0.05, 0.1],
+            [16, 32],
+            extra_ch,
+            [[16, 16, 32], [32, 32, 64]],
+            dtype=dtype,
         )
         self.sa2 = pnet2.PointNetSetAbstractionMsg(
-            256, [0.1, 0.2], [16, 32], 32 + 64, [[64, 64, 128], [64, 96, 128]]
-            , dtype=dtype
+            256,
+            [0.1, 0.2],
+            [16, 32],
+            32 + 64,
+            [[64, 64, 128], [64, 96, 128]],
+            dtype=dtype,
         )
         self.sa3 = pnet2.PointNetSetAbstractionMsg(
-            64, [0.2, 0.4], [16, 32], 128 + 128, [[128, 196, 256], [128, 196, 256]]
-            , dtype=dtype
+            64,
+            [0.2, 0.4],
+            [16, 32],
+            128 + 128,
+            [[128, 196, 256], [128, 196, 256]],
+            dtype=dtype,
         )
         self.sa4 = pnet2.PointNetSetAbstractionMsg(
-            16, [0.4, 0.8], [16, 32], 256 + 256, [[256, 256, 512], [256, 384, 512]]
-            , dtype=dtype
+            16,
+            [0.4, 0.8],
+            [16, 32],
+            256 + 256,
+            [[256, 256, 512], [256, 384, 512]],
+            dtype=dtype,
         )
-        self.fp4 = pnet2.PointNetFeaturePropagation(512 + 512 + 256 + 256, [256, 256], dtype=dtype)
-        self.fp3 = pnet2.PointNetFeaturePropagation(128 + 128 + 256, [256, 256], dtype=dtype)
-        self.fp2 = pnet2.PointNetFeaturePropagation(32 + 64 + 256, [256, 128], dtype=dtype)
+        self.fp4 = pnet2.PointNetFeaturePropagation(
+            512 + 512 + 256 + 256, [256, 256], dtype=dtype
+        )
+        self.fp3 = pnet2.PointNetFeaturePropagation(
+            128 + 128 + 256, [256, 256], dtype=dtype
+        )
+        self.fp2 = pnet2.PointNetFeaturePropagation(
+            32 + 64 + 256, [256, 128], dtype=dtype
+        )
 
         # Modified last layer
         # self.fp1 = pnet2.PointNetFeaturePropagation(128, [128, 128, 128], dtype=dtype)
-        activation = None if strategy == 4 else 'relu'
-        self.fp1 = pnet2.PointNetFeaturePropagation(128, [128, 128, 128, out_channels], activation=activation, dtype=dtype)
+        activation = None if strategy == 4 else "relu"
+        self.fp1 = pnet2.PointNetFeaturePropagation(
+            128, [128, 128, 128, out_channels], activation=activation, dtype=dtype
+        )
 
     def forward(self, xyz):
         """Forward pass of the model.
@@ -343,7 +389,9 @@ class Decoder(nn.Module):
             return tpn, norm
 
         # # Strat 2: Predict predict normals directly with an extra channel for is_noise
-        elif (self.strategy == 2) or (self.strategy == 4): # Strat 4 is the same as strat 2 but with a different loss
+        elif (self.strategy == 2) or (
+            self.strategy == 4
+        ):  # Strat 4 is the same as strat 2 but with a different loss
             x = self.conv2(x)  # Shape (B, out_channels, N)
             normn = self.out_activation(x)  # Normals
 
@@ -411,14 +459,19 @@ class Model(nn.Module):
         self.device = device
 
         # Model layers
-        self.encoder = Encoder(in_channels=in_channels, out_channels=feat_channels, strategy=strategy, dtype=dtype).to(
-            device
-        )
+        self.encoder = Encoder(
+            in_channels=in_channels,
+            out_channels=feat_channels,
+            strategy=strategy,
+            dtype=dtype,
+        ).to(device)
 
         if strategy == 4:  # Probablistic embeddings
             self.mu_fc = nn.Linear(feat_channels, feat_channels)  # Mean
             self.logvar_fc = nn.Linear(feat_channels, feat_channels)  # Log variance
-            self.enc_activation = nn.ReLU()  # Match the activation of the encoder for consistency with other strategies
+            self.enc_activation = (
+                nn.ReLU()
+            )  # Match the activation of the encoder for consistency with other strategies
 
         self.decoder = Decoder(
             K=K, in_channels=feat_channels, out_channels=out_channels, strategy=strategy
@@ -453,9 +506,9 @@ class Model(nn.Module):
         ## Normalize
         inputs = self.pc_normalize_batch(
             torch.stack([graph.points_torch for graph in graphs], dim=0)
-        ) # Shape (B, N, in_channels)
+        )  # Shape (B, N, in_channels)
         inputs = inputs.to(self.device).permute(0, 2, 1)  # Shape (B, in_channels, N)
-        
+
         # inputs = [
         #     torch.from_numpy(self.pc_normalize(graph.points)).float().to(self.device)
         #     for graph in graphs
@@ -463,7 +516,6 @@ class Model(nn.Module):
         # inputs = torch.stack(inputs, dim=0).permute(
         #     0, 2, 1
         # )  # Shape (B, in_channels, N)
-
 
         # inputs = torch.cat(
         #     [torch.from_numpy(graph.points[None, ...]).to(self.device) for graph in graphs],
@@ -479,7 +531,7 @@ class Model(nn.Module):
 
         if self.strategy == 4:  # Probablistic embeddings
             feats = feats.permute(0, 2, 1)  # Shape (B, N, feat_channels)
-            
+
             # Create a distribution for each point
             mu = F.tanh(self.mu_fc(feats)) + feats  # Shape (B, feat_channels, N)
             logvar = self.logvar_fc(feats)
@@ -551,7 +603,7 @@ class Model(nn.Module):
         m = np.max(np.sqrt(np.sum(pc**2, axis=1)))
         pc = pc / m
         return pc
-    
+
     # @torch.jit.script
     def pc_normalize_batch(self, pc):
         """Normalize the point cloud as per pointnet++ centroid normalization.
@@ -567,8 +619,10 @@ class Model(nn.Module):
         centroid = torch.mean(pc, dim=1, keepdim=True)
         pc = pc - centroid
         m = torch.max(
-            torch.sqrt(torch.sum(pc ** 2, dim=2, keepdim=True)), dim=1, keepdim=True
-        )[0]  # (B, 1, 1); max() returns (values, indices), we only need values so we use [0]
+            torch.sqrt(torch.sum(pc**2, dim=2, keepdim=True)), dim=1, keepdim=True
+        )[
+            0
+        ]  # (B, 1, 1); max() returns (values, indices), we only need values so we use [0]
         pc = pc / m
         return pc
 
@@ -578,10 +632,17 @@ def groupby_mean(samples, labels):
     Modified from: https://stackoverflow.com/a/73723767
     """
     assert labels.min() == 0, "Labels must start from 0 for groupby_mean"
-    M = torch.zeros(labels.shape[0], labels.max()+1, labels.shape[1]).to(samples.device)
-    M[torch.arange(len(labels)).long()[:,None], labels, torch.arange(labels.size(1)).long()] = 1
+    M = torch.zeros(labels.shape[0], labels.max() + 1, labels.shape[1]).to(
+        samples.device
+    )
+    M[
+        torch.arange(len(labels)).long()[:, None],
+        labels,
+        torch.arange(labels.size(1)).long(),
+    ] = 1
     M = torch.nn.functional.normalize(M, p=1, dim=-1)
     return M @ samples
+
 
 def get_kl_criterion(normalization=False, eps=1e-5):
     def _normalised_kl_divergence(p, q):
@@ -595,25 +656,26 @@ def get_kl_criterion(normalization=False, eps=1e-5):
             torch.Tensor: KL divergence.
         """
         kl_div = torch.distributions.kl_divergence(p, q)
-        if normalization == 'exp':
+        if normalization == "exp":
             # print(f"KL = {kl_div}")
             return (1.0 - torch.exp(-kl_div)).mean()
-        elif normalization == 'log':
+        elif normalization == "log":
             # print(f"KL = {kl_div}")
             return (1.0 - torch.log(torch.max(eps, kl_div))).mean()
-        elif normalization == 'none':
+        elif normalization == "none":
             # return torch.distributions.kl_divergence(p, q).sum()
             return kl_div.mean()
         else:
             raise ValueError(f"Invalid normalization: {normalization}")
-    
+
     return _normalised_kl_divergence
+
 
 def _parse_batches(strategy, batch_pred, batch_gt, K=None):
     """Parse the batches for the different strategies."""
 
     assert strategy in [1, 2, 3, 4], "Invalid strategy"
-    
+
     if strategy == 3:
         assert K is not None, "K must be specified for strategy 3"
 
@@ -667,7 +729,16 @@ def _parse_batches(strategy, batch_pred, batch_gt, K=None):
         tp_pred = tpn_pred[..., :2]
         tp_gt = tpn_gt[..., :2]
 
-        return tp_pred, tp_gt, norm_pred, norm_gt, noise_pred, noise_gt, k_nbd_probs, k_nbd_probs_gt
+        return (
+            tp_pred,
+            tp_gt,
+            norm_pred,
+            norm_gt,
+            noise_pred,
+            noise_gt,
+            k_nbd_probs,
+            k_nbd_probs_gt,
+        )
     elif strategy == 4:
         normn_pred, mu, std = batch_pred
         normn_gt, instance_ids_gt, instance_points_count_gt = batch_gt
@@ -675,8 +746,9 @@ def _parse_batches(strategy, batch_pred, batch_gt, K=None):
         return normn_pred, normn_gt, mu, std, instance_ids_gt, instance_points_count_gt
     else:
         raise ValueError(f"Unknown strategy {strategy}")
- 
-def get_loss_fn(K=None, strategy=1, weigh_by_noise_prob=True, normalization='exp'):
+
+
+def get_loss_fn(K=None, strategy=1, weigh_by_noise_prob=True, normalization="exp"):
     """Get the loss function for the model.
     #TODO: Add weights to the losses
 
@@ -693,17 +765,18 @@ def get_loss_fn(K=None, strategy=1, weigh_by_noise_prob=True, normalization='exp
     if strategy == 4:
         criterion_kl = get_kl_criterion(normalization=normalization)
 
-
     assert strategy in [1, 2, 3, 4], f"Invalid strategy: {strategy}"
     if strategy == 3 and K is None:
         raise ValueError("K must be specified for strategy 3")
-   
+
     def _noise_aware_loss_strat1(batch_pred, batch_gt):
         """Loss function for strategy 1."""
         # print(tpn_pred.shape, tpn_gt.shape)  # DEBUG
         # print(norm_pred.shape, norm_gt.shape)  # DEBUG
 
-        tp_pred, tp_gt, norm_pred, norm_gt, noise_pred, noise_gt = _parse_batches(1, batch_pred, batch_gt)
+        tp_pred, tp_gt, norm_pred, norm_gt, noise_pred, noise_gt = _parse_batches(
+            1, batch_pred, batch_gt
+        )
 
         # print(noise_pred.shape, noise_gt.shape)  # DEBUG
         # print(tp_pred.shape, tp_gt.shape)  # DEBUG
@@ -737,13 +810,21 @@ def get_loss_fn(K=None, strategy=1, weigh_by_noise_prob=True, normalization='exp
 
         # TODO: Add classification at some point maybe
 
-        return tp_loss, norm_loss, noise_probs_loss, torch.tensor(0).cuda(), torch.tensor(0).cuda()
+        return (
+            tp_loss,
+            norm_loss,
+            noise_probs_loss,
+            torch.tensor(0).cuda(),
+            torch.tensor(0).cuda(),
+        )
 
     # def _noise_aware_loss_strat2(normn_pred, normn_gt):
     def _noise_aware_loss_strat2(batch_pred, batch_gt):
         """Loss function for strategy 2."""
-        
-        norm_pred, norm_gt, noise_pred, noise_gt = _parse_batches(2, batch_pred, batch_gt)
+
+        norm_pred, norm_gt, noise_pred, noise_gt = _parse_batches(
+            2, batch_pred, batch_gt
+        )
 
         # print(noise_pred.shape, noise_gt.shape)  # DEBUG
         # print(norm_pred.shape, norm_gt.shape)  # DEBUG
@@ -784,8 +865,17 @@ def get_loss_fn(K=None, strategy=1, weigh_by_noise_prob=True, normalization='exp
         """Loss function for strategy 3."""
         # print(tpn_pred.shape, tpn_gt.shape)  # DEBUG
         # print(norm_pred.shape, norm_gt.shape)  # DEBUG
-        
-        tp_pred, tp_gt, norm_pred, norm_gt, noise_pred, noise_gt, k_nbd_probs, k_nbd_probs_gt = _parse_batches(3, batch_pred, batch_gt, K)
+
+        (
+            tp_pred,
+            tp_gt,
+            norm_pred,
+            norm_gt,
+            noise_pred,
+            noise_gt,
+            k_nbd_probs,
+            k_nbd_probs_gt,
+        ) = _parse_batches(3, batch_pred, batch_gt, K)
 
         # print(noise_pred.shape, noise_gt.shape)  # DEBUG
         # print(tp_pred.shape, tp_gt.shape)  # DEBUG
@@ -820,65 +910,115 @@ def get_loss_fn(K=None, strategy=1, weigh_by_noise_prob=True, normalization='exp
         # K-Nearest Neighbors' probabilities (of belonging to the same instance as the point) loss
         k_nbd_probs_loss = criterion_k_nbd_probs(k_nbd_probs, k_nbd_probs_gt)
 
-        return tp_loss, norm_loss, noise_probs_loss, k_nbd_probs_loss, torch.tensor(0).cuda()
+        return (
+            tp_loss,
+            norm_loss,
+            noise_probs_loss,
+            k_nbd_probs_loss,
+            torch.tensor(0).cuda(),
+        )
 
     def _noise_aware_loss_strat4(batch_pred, batch_gt):
         """Loss function for strategy 4."""
 
-        normn_pred, normn_gt, mu, std, instance_ids_gt, instance_points_count_gt = _parse_batches(4, batch_pred, batch_gt)
+        (
+            normn_pred,
+            normn_gt,
+            mu,
+            std,
+            instance_ids_gt,
+            instance_points_count_gt,
+        ) = _parse_batches(4, batch_pred, batch_gt)
 
         # Get the strategy 2 loss
-        tp_loss, norm_loss, noise_probs_loss, k_nbd_probs_loss, _ = _noise_aware_loss_strat2(
-            normn_pred, normn_gt
-        )
-        
+        (
+            tp_loss,
+            norm_loss,
+            noise_probs_loss,
+            k_nbd_probs_loss,
+            _,
+        ) = _noise_aware_loss_strat2(normn_pred, normn_gt)
+
         # with torch.no_grad():  # No need to compute gradients for this
         # Get average distribution parameters for each instance
-        instance_average_mu = groupby_mean(mu, instance_ids_gt)  # batch_size, n_instances, n_feats
-        
+        instance_average_mu = groupby_mean(
+            mu, instance_ids_gt
+        )  # batch_size, n_instances, n_feats
+
         # std is a bit more complicated, but basically, std_average = sqrt(mean(var / instance_points_count)) = sqrt(sum(std^2)) / instance_points_count
         eps = 1e-8  # To avoid sqrt zero, which has infinite gradient
-        instance_average_std = groupby_mean((std ** 2) / instance_points_count_gt.unsqueeze(-1), instance_ids_gt)  # batch_size, n_instances, n_feats
-        instance_average_std = torch.sqrt(torch.abs(instance_average_std) + eps)  # batch_size, n_instances, n_feats
+        instance_average_std = groupby_mean(
+            (std**2) / instance_points_count_gt.unsqueeze(-1), instance_ids_gt
+        )  # batch_size, n_instances, n_feats
+        instance_average_std = torch.sqrt(
+            torch.abs(instance_average_std) + eps
+        )  # batch_size, n_instances, n_feats
 
         # Assign instance (mu, std) to points based on their instance_ids
         instance_average_mu = instance_average_mu[
-            torch.arange(instance_ids_gt.shape[0]).long().unsqueeze(-1), instance_ids_gt]  # batch_size, n_points, n_feats
+            torch.arange(instance_ids_gt.shape[0]).long().unsqueeze(-1), instance_ids_gt
+        ]  # batch_size, n_points, n_feats
         instance_average_std = instance_average_std[
-            torch.arange(instance_ids_gt.shape[0]).long().unsqueeze(-1), instance_ids_gt]  # batch_size, n_points, n_feats
+            torch.arange(instance_ids_gt.shape[0]).long().unsqueeze(-1), instance_ids_gt
+        ]  # batch_size, n_points, n_feats
 
         # Instances' normal distribution p
         p = torch.distributions.Normal(instance_average_mu, instance_average_std)
-        
+
         # Points' normal distribution q
         q = torch.distributions.Normal(mu, std)
 
         # KL Divergence loss between p and q, should be close to 0 for points belonging to the same instance
         kl_loss_pos = criterion_kl(q, p)  # KL divergence between positive examples
 
-        kl_loss_neg = torch.tensor(0.0).cuda()  # KL divergence between negative examples  
+        kl_loss_neg = torch.tensor(
+            0.0
+        ).cuda()  # KL divergence between negative examples
         # print('[WARN] Not calculating KL divergence loss for negative examples for now')
-        #DEBUG : Not calculating KL divergence loss for negative examples for now 
-        
-        _count = instance_average_mu.shape[0]
-        for instance_mu, instance_std, instance_id in zip(instance_average_mu, instance_average_std, instance_ids_gt):
-            # Broadcast instance indices for faster computation
-            total_instances = instance_id.max().item() + 1  # Total number of instances, including the noise instance (0)
-            all = list(range(0, total_instances))  # List of all the instances, including the noise instance (0)
+        # DEBUG : Not calculating KL divergence loss for negative examples for now
 
-            instances = [[all[i]] * (total_instances - 1) for i in range(1, total_instances)]  # All instance IDs, excluding the noise instance (0)
-            handshakes = [all[i+1:] + all[:i] for i in range(1, len(all))]  # All possible comparisons with the rest of the instance IDs, including the noise instance
-            
+        _count = instance_average_mu.shape[0]
+        for instance_mu, instance_std, instance_id in zip(
+            instance_average_mu, instance_average_std, instance_ids_gt
+        ):
+            # Broadcast instance indices for faster computation
+            total_instances = (
+                instance_id.max().item() + 1
+            )  # Total number of instances, including the noise instance (0)
+            all = list(
+                range(0, total_instances)
+            )  # List of all the instances, including the noise instance (0)
+
+            instances = [
+                [all[i]] * (total_instances - 1) for i in range(1, total_instances)
+            ]  # All instance IDs, excluding the noise instance (0)
+            handshakes = [
+                all[i + 1 :] + all[:i] for i in range(1, len(all))
+            ]  # All possible comparisons with the rest of the instance IDs, including the noise instance
+
             # Distributions of all the instances, excluding the noise instance
-            p = torch.distributions.Normal(instance_mu[instances,], instance_std[instances,])
-            
+            p = torch.distributions.Normal(
+                instance_mu[
+                    instances,
+                ],
+                instance_std[
+                    instances,
+                ],
+            )
+
             # Compare with the rest of the instances, including the noise instance
-            q = torch.distributions.Normal(instance_mu[handshakes,], instance_std[handshakes,])
+            q = torch.distributions.Normal(
+                instance_mu[
+                    handshakes,
+                ],
+                instance_std[
+                    handshakes,
+                ],
+            )
 
             # Compute the KL divergence between the distributions
             kl_loss_neg += criterion_kl(q, p)
 
-        
         # ######################### NAIVE IMPLEMENTATION START #########################
         # _count = 0
         # normal_distributions = [
@@ -897,16 +1037,18 @@ def get_loss_fn(K=None, strategy=1, weigh_by_noise_prob=True, normalization='exp
         #                 q = torch.distributions.Normal(instance_average_mu[b, j], instance_average_std[b, j])
         #                 kl_loss_neg += criterion_kl(q, p)
         #                 _count += 1
-        
+
         # ######################### NAIVE IMPLEMENTATION END #########################
 
         # Average the KL divergence loss
         kl_loss_neg /= _count
 
         # KL Divergence loss total
-        kl_loss = kl_loss_pos - kl_loss_neg + 1  # +1 to make sure it's always >= 0 like other losses
+        kl_loss = (
+            kl_loss_pos - kl_loss_neg + 1
+        )  # +1 to make sure it's always >= 0 like other losses
         # minimising kl_loss_pos and maximising kl_loss_neg should be equivalent to minimising kl_loss
-        
+
         return tp_loss, norm_loss, noise_probs_loss, k_nbd_probs_loss, kl_loss
 
     if strategy == 1:
@@ -918,12 +1060,13 @@ def get_loss_fn(K=None, strategy=1, weigh_by_noise_prob=True, normalization='exp
     elif strategy == 4:
         return _noise_aware_loss_strat4
 
+
 def get_metric_fn(strategy=1, K=None):
-    
-    assert strategy in [1, 2, 3, 4], 'Invalid strategy'
+
+    assert strategy in [1, 2, 3, 4], "Invalid strategy"
     if strategy == 3:
-        assert K is not None, 'K must be specified for strategy 3'
-    
+        assert K is not None, "K must be specified for strategy 3"
+
     # criterion_norm = nn.CosineEmbeddingLoss(reduction='none')
     criterion_norm = nn.CosineSimilarity(dim=-1)
 
@@ -948,27 +1091,32 @@ def get_metric_fn(strategy=1, K=None):
             _, _, norm_pred, norm_gt, _, noise_gt, _, _ = parsed
         elif strategy == 4:
             normn_pred, normn_gt, _, _, _, _ = parsed
-            norm_pred, norm_gt, _, noise_gt = _parse_batches(2, normn_pred, normn_gt)  # strat2
+            norm_pred, norm_gt, _, noise_gt = _parse_batches(
+                2, normn_pred, normn_gt
+            )  # strat2
         else:
             raise NotImplementedError
 
         # Norm Loss
         norm_loss = criterion_norm(
-            norm_pred, norm_gt,
+            norm_pred,
+            norm_gt,
             # torch.ones(norm_gt.shape[0]).cuda()
         )
 
         # Norm loss for foreground points (should be close to 1)
         norm_pred_fg_weighted = norm_pred * (1 - noise_gt)
         norm_loss_fg_weighted = criterion_norm(
-            norm_pred_fg_weighted, norm_gt,
+            norm_pred_fg_weighted,
+            norm_gt,
             # torch.ones(norm_gt.shape[0]).cuda()
         )
 
         # Norm loss for noise points (should be close to 0)
         norm_pred_noise = norm_pred * noise_gt
         norm_loss_noise = criterion_norm(
-            norm_pred_noise, norm_gt * noise_gt,
+            norm_pred_noise,
+            norm_gt * noise_gt,
             # torch.ones(norm_gt.shape[0]).cuda()
         )
 
@@ -1037,16 +1185,26 @@ class Dataloader(torch.utils.data.DataLoader):
                 )
                 gt = (batch_tpns, batch_norms, batch_k_nbd_probs)
             elif self.strategy == 4:
-                batch_normns, batch_instance_ids, batch_instance_points_count = zip(*batch_gt)
+                batch_normns, batch_instance_ids, batch_instance_points_count = zip(
+                    *batch_gt
+                )
                 batch_normns = torch.from_numpy(np.stack(batch_normns)).float().cuda()
-                batch_instance_ids = torch.from_numpy(np.stack(batch_instance_ids)).long().cuda()
-                batch_instance_points_count = torch.from_numpy(np.stack(batch_instance_points_count)).long().cuda()
+                batch_instance_ids = (
+                    torch.from_numpy(np.stack(batch_instance_ids)).long().cuda()
+                )
+                batch_instance_points_count = (
+                    torch.from_numpy(np.stack(batch_instance_points_count))
+                    .long()
+                    .cuda()
+                )
                 gt = (batch_normns, batch_instance_ids, batch_instance_points_count)
             # yield batch, batch_tpns, batch_norms
             yield batch, gt
 
 
-def train(model, optimizer, scheduler, loss_fn, metric_fn, train_loader, val_loader, params):
+def train(
+    model, optimizer, scheduler, loss_fn, metric_fn, train_loader, val_loader, params
+):
     # DEBUG
     torch.autograd.set_detect_anomaly(True)
 
@@ -1066,7 +1224,6 @@ def train(model, optimizer, scheduler, loss_fn, metric_fn, train_loader, val_loa
             "val_k_nbd_probs_loss": [],
             "val_kl_loss": [],
             "val_loss": [],
-
             # Metrics
             "train_angle_error": [],
             "train_angle_error_fg": [],
@@ -1074,7 +1231,6 @@ def train(model, optimizer, scheduler, loss_fn, metric_fn, train_loader, val_loa
             "val_angle_error": [],
             "val_angle_error_fg": [],
             "val_angle_error_noise": [],
-
             # Best epoch
             "best_val_loss": np.inf,
             "best_epoch": 0,
@@ -1103,7 +1259,10 @@ def train(model, optimizer, scheduler, loss_fn, metric_fn, train_loader, val_loa
 
             # for i, (batch, batch_tpns, batch_norms) in tqdm(enumerate(train_loader), total=len(train_loader), desc='Train', leave=False):
             for i, (batch, batch_gt) in tqdm(
-                enumerate(train_loader), total=len(train_loader), desc="Train", leave=False
+                enumerate(train_loader),
+                total=len(train_loader),
+                desc="Train",
+                leave=False,
             ):
                 optimizer.zero_grad()
 
@@ -1134,7 +1293,9 @@ def train(model, optimizer, scheduler, loss_fn, metric_fn, train_loader, val_loa
 
                 # Calculate and update the metrics
                 # with torch.no_grad():
-                angle_error, angle_error_fg, angle_error_noise = metric_fn(batch_pred, batch_gt)
+                angle_error, angle_error_fg, angle_error_noise = metric_fn(
+                    batch_pred, batch_gt
+                )
                 train_angle_error += angle_error.item() * len(batch)
                 train_angle_error_fg += angle_error_fg.item() * len(batch)
                 train_angle_error_noise += angle_error_noise.item() * len(batch)
@@ -1157,8 +1318,8 @@ def train(model, optimizer, scheduler, loss_fn, metric_fn, train_loader, val_loa
             tqdm.write(
                 f"Epoch {epoch+1}/{params['training']['epochs']}: train_loss={train_loss/count:.4f} "
                 f"[norm={train_norm_loss/count:.4f}, tpn={train_tpn_loss/count:.4f}, noise={train_noise_loss/count:.4f}, "
-                f"k_nbd_probs={train_k_nbd_probs_loss/count:.4f}, kl={train_kl_loss/count:.4f}] "\
-                f"[angle_error={train_angle_error/count:.4f}, angle_error_fg={train_angle_error_fg/count:.4f}, angle_error_noise={train_angle_error_noise/count:.4f}]"        
+                f"k_nbd_probs={train_k_nbd_probs_loss/count:.4f}, kl={train_kl_loss/count:.4f}] "
+                f"[angle_error={train_angle_error/count:.4f}, angle_error_fg={train_angle_error_fg/count:.4f}, angle_error_noise={train_angle_error_noise/count:.4f}]"
             )
 
             # Validate
@@ -1200,7 +1361,9 @@ def train(model, optimizer, scheduler, loss_fn, metric_fn, train_loader, val_loa
 
                 # Calculate and update the metrics
                 # with torch.no_grad():
-                angle_error, angle_error_fg, angle_error_noise = metric_fn(batch_pred, batch_gt)
+                angle_error, angle_error_fg, angle_error_noise = metric_fn(
+                    batch_pred, batch_gt
+                )
                 val_angle_error += angle_error.item() * len(batch)
                 val_angle_error_fg += angle_error_fg.item() * len(batch)
                 val_angle_error_noise += angle_error_noise.item() * len(batch)
@@ -1223,7 +1386,7 @@ def train(model, optimizer, scheduler, loss_fn, metric_fn, train_loader, val_loa
             tqdm.write(
                 f"Epoch {epoch+1}/{params['training']['epochs']}: val_loss={val_loss/count:.4f} "
                 f"[norm={val_norm_loss/count:.4f}, tpn={val_tpn_loss/count:.4f}, noise={val_noise_loss/count:.4f}, "
-                f"k_nbd_probs={val_k_nbd_probs_loss/count:.4f}, kl={val_kl_loss/count:.4f}] "\
+                f"k_nbd_probs={val_k_nbd_probs_loss/count:.4f}, kl={val_kl_loss/count:.4f}] "
                 f"[angle_error={val_angle_error/count:.4f}, angle_error_fg={val_angle_error_fg/count:.4f}, angle_error_noise={val_angle_error_noise/count:.4f}]"
             )
 
@@ -1247,7 +1410,9 @@ def train(model, optimizer, scheduler, loss_fn, metric_fn, train_loader, val_loa
     except KeyboardInterrupt:
         print("Training interrupted! Stopping...")
     print("Training finished!")
-    print(f"Best val_loss={best_val_loss/(count + 1e-8):.4f} at epoch {history['best_epoch']+1}")
+    print(
+        f"Best val_loss={best_val_loss/(count + 1e-8):.4f} at epoch {history['best_epoch']+1}"
+    )
 
 
 # Inference tools
@@ -1353,9 +1518,11 @@ def infer_on_dataset(
     for i in tqdm(range(len(dataset)), desc="Saving ply files"):
         # Save the ground truth
         df = dataset[i].df
-        label = df.label[~df.label.str.startswith('noise')][0]
-        write_ply(df, os.path.join(save_dir, f"{label}_{i}_gt.ply"), noise_label=noise_label)
-        
+        label = df.label[~df.label.str.startswith("noise")][0]
+        write_ply(
+            df, os.path.join(save_dir, f"{label}_{i}_gt.ply"), noise_label=noise_label
+        )
+
         # Save the df
         if save_df:
             df.to_parquet(os.path.join(save_dir, f"{label}_{i}_gt.parquet"))
@@ -1366,7 +1533,9 @@ def infer_on_dataset(
         df["nz"] = pred_norms[i][:, 2]
         # print(df.label.shape, pred_is_noises[i].shape, np.where(pred_is_noises[i], noise_label, 'foreground').shape)
         df["label"] = np.where(pred_is_noises[i], noise_label, "foreground")
-        write_ply(df, os.path.join(save_dir, f"{label}_{i}_pred.ply"), noise_label=noise_label)
+        write_ply(
+            df, os.path.join(save_dir, f"{label}_{i}_pred.ply"), noise_label=noise_label
+        )
 
         # Save the df
         if save_df:

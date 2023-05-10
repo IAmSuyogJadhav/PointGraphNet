@@ -12,8 +12,8 @@ import json
 from helper import simulate_thunderstorm
 
 
-def load_csv(filename: str, label: str=None) -> pd.DataFrame:
-    """ Load a csv file into a pandas DataFrame.
+def load_csv(filename: str, label: str = None) -> pd.DataFrame:
+    """Load a csv file into a pandas DataFrame.
 
     Args:
         filename (str): The name of the file to load.
@@ -35,8 +35,8 @@ def load_csv(filename: str, label: str=None) -> pd.DataFrame:
     return df
 
 
-def load_parquet(filename: str, label: str=None) -> pd.DataFrame:
-    """ Load a parquet file into a pandas DataFrame.
+def load_parquet(filename: str, label: str = None) -> pd.DataFrame:
+    """Load a parquet file into a pandas DataFrame.
 
     Args:
         filename (str): The name of the file to load.
@@ -58,16 +58,27 @@ def load_parquet(filename: str, label: str=None) -> pd.DataFrame:
     return df
 
 
-def simulate_and_save(points: pd.DataFrame, filename: str, sample_percent: float=0.75, noise_percent_fg: float=0.15, imprecision: float=20, noise_radius_min: int=20, noise_radius_max: int=60, noise_percent_bg: float=0.05, overwrite: bool=False, format='parquet'):
+def simulate_and_save(
+    points: pd.DataFrame,
+    filename: str,
+    sample_percent: float = 0.75,
+    noise_percent_fg: float = 0.15,
+    imprecision: float = 20,
+    noise_radius_min: int = 20,
+    noise_radius_max: int = 60,
+    noise_percent_bg: float = 0.05,
+    overwrite: bool = False,
+    format="parquet",
+):
     """Simulates thunderstorm by sampling points, adding noise, and adding localisation imprecision, and saves the simulated points to a CSV file.
 
     Args:
         points (pd.DataFrame): The points to simulate thunderstorm on.
         sample_percent (float, optional): The percentage of points to sample. Defaults to 0.75.
-        noise_percent_fg (float, optional): The percentage of noisy points as a fraction 
+        noise_percent_fg (float, optional): The percentage of noisy points as a fraction
             of the total number of points. Defaults to 0.15.
         imprecision (float, optional): The maximum shift in nanometers. Defaults to 20.
-        noise_radius_min (int, optional): The minimum distance of the noisy point 
+        noise_radius_min (int, optional): The minimum distance of the noisy point
             from the original point's position. Defaults to 20.
         noise_radius_max (int, optional): The maximum distance of the noisy point
             from the original point's position. Defaults to 60.
@@ -78,10 +89,18 @@ def simulate_and_save(points: pd.DataFrame, filename: str, sample_percent: float
         format (str, optional): The format to save the file in. Defaults to 'parquet'. Options are 'parquet' and 'csv'.
     """
     try:
-        points = simulate_thunderstorm(points, sample_percent, noise_percent_fg, imprecision, noise_radius_min, noise_radius_max, noise_percent_bg)
-        if format == 'parquet':
+        points = simulate_thunderstorm(
+            points,
+            sample_percent,
+            noise_percent_fg,
+            imprecision,
+            noise_radius_min,
+            noise_radius_max,
+            noise_percent_bg,
+        )
+        if format == "parquet":
             save_parquet(filepath=filename, data=points, overwrite=overwrite)
-        elif format == 'csv':
+        elif format == "csv":
             save_csv(filepath=filename, data=points, overwrite=overwrite)
         else:
             raise ValueError(f"Unknown format {format}")
@@ -89,7 +108,12 @@ def simulate_and_save(points: pd.DataFrame, filename: str, sample_percent: float
         return traceback.format_exc()
 
 
-def show_2d(points: pd.DataFrame, title: str = 'Points (2D)', crop_idxs: tuple = (None, None, None, None), labels: bool=False):
+def show_2d(
+    points: pd.DataFrame,
+    title: str = "Points (2D)",
+    crop_idxs: tuple = (None, None, None, None),
+    labels: bool = False,
+):
     """Shows a 2D plot of the points.
 
     Args:
@@ -100,25 +124,41 @@ def show_2d(points: pd.DataFrame, title: str = 'Points (2D)', crop_idxs: tuple =
     """
 
     # Plot different labels in different colors
-    plt.subplot(1, 2, 1); plt.title('Classes')
+    plt.subplot(1, 2, 1)
+    plt.title("Classes")
     if labels:
-        for label in points['label'].unique():
-            plt.scatter(points[points['label'] == label]['x'], points[points['label'] == label]['y'], label=label, marker='.', s=2**2)
+        for label in points["label"].unique():
+            plt.scatter(
+                points[points["label"] == label]["x"],
+                points[points["label"] == label]["y"],
+                label=label,
+                marker=".",
+                s=2**2,
+            )
     else:
-        plt.scatter(points['x'], points['y'], marker='.', s=2**2)
+        plt.scatter(points["x"], points["y"], marker=".", s=2**2)
 
     # Crop the plot
-    plt.xlim(crop_idxs[0], crop_idxs[1]); plt.ylim(crop_idxs[2], crop_idxs[3])
+    plt.xlim(crop_idxs[0], crop_idxs[1])
+    plt.ylim(crop_idxs[2], crop_idxs[3])
     plt.legend()
 
     # Plot different instances in different colors
-    plt.subplot(1, 2, 2); plt.title('Instances')
+    plt.subplot(1, 2, 2)
+    plt.title("Instances")
 
-    for instance in points['instance_id'].unique():
-        plt.scatter(points[points['instance_id'] == instance]['x'], points[points['instance_id'] == instance]['y'], label=instance, marker='.', s=2**2)
+    for instance in points["instance_id"].unique():
+        plt.scatter(
+            points[points["instance_id"] == instance]["x"],
+            points[points["instance_id"] == instance]["y"],
+            label=instance,
+            marker=".",
+            s=2**2,
+        )
 
     # Crop the plot
-    plt.xlim(crop_idxs[0], crop_idxs[1]); plt.ylim(crop_idxs[2], crop_idxs[3])
+    plt.xlim(crop_idxs[0], crop_idxs[1])
+    plt.ylim(crop_idxs[2], crop_idxs[3])
 
     # Set title and show
     plt.suptitle(title)
@@ -126,7 +166,7 @@ def show_2d(points: pd.DataFrame, title: str = 'Points (2D)', crop_idxs: tuple =
 
 
 def save_parquet(
-    filepath: str, data: np.ndarray, label: str=None, overwrite: bool = False
+    filepath: str, data: np.ndarray, label: str = None, overwrite: bool = False
 ):
     """Save the simulated points as a parquet file. Parquet does not support header rows.
 
@@ -154,7 +194,8 @@ def save_parquet(
 
 
 def save_csv(
-    filepath: str, data: pd.DataFrame, header_row: bool = True, overwrite: bool = False):
+    filepath: str, data: pd.DataFrame, header_row: bool = True, overwrite: bool = False
+):
     """Save the simulated points as a csv file, for use with testSTORM.
 
     Args:
@@ -199,24 +240,100 @@ def _update_pbar(pbar: tqdm, cur: Generator, desc: str):
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description='Simulate thunderstorm on the given ideal point clouds.')
-    parser.add_argument('structure', type=str, help='The structure to simulate thunderstorm on (npc, vesicle, mito, actin, microtubules).')
-    parser.add_argument('--print_params', action='store_true', help='Print the default parameters (view and edit in config.py).')
+    parser = argparse.ArgumentParser(
+        description="Simulate thunderstorm on the given ideal point clouds."
+    )
+    parser.add_argument(
+        "structure",
+        type=str,
+        help="The structure to simulate thunderstorm on (npc, vesicle, mito, actin, microtubules).",
+    )
+    parser.add_argument(
+        "--print_params",
+        action="store_true",
+        help="Print the default parameters (view and edit in config.py).",
+    )
 
-    parser.add_argument('-n', type=int, default=None, help='The number of point clouds to simulate thunderstorm on (first n will be picked). Defaults to all.')
-    parser.add_argument('-i', '--data_path', type=str, default=None, help='The path to the data directory.')
-    parser.add_argument('--sample_percent', type=float, default=None, help='The percentage of points to keep.')
-    parser.add_argument('--imprecision', type=float, default=None, help='The maximum shift in nanometers.')
-    parser.add_argument('--noise_percent_fg', type=float, default=None, help='The percentage of foreground noise to add.')
-    parser.add_argument('--noise_percent_bg', type=float, default=None, help='The percentage of background noise to add.')
-    parser.add_argument('--noise_radius_min', type=float, default=None, help='The minimum radius of the noise.')
-    parser.add_argument('--noise_radius_max', type=float, default=None, help='The maximum radius of the noise.')
-    parser.add_argument('-o', '--output_path', type=str, default=None, help='The path to the output directory.')
+    parser.add_argument(
+        "-n",
+        type=int,
+        default=None,
+        help="The number of point clouds to simulate thunderstorm on (first n will be picked). Defaults to all.",
+    )
+    parser.add_argument(
+        "-i",
+        "--data_path",
+        type=str,
+        default=None,
+        help="The path to the data directory.",
+    )
+    parser.add_argument(
+        "--sample_percent",
+        type=float,
+        default=None,
+        help="The percentage of points to keep.",
+    )
+    parser.add_argument(
+        "--imprecision",
+        type=float,
+        default=None,
+        help="The maximum shift in nanometers.",
+    )
+    parser.add_argument(
+        "--noise_percent_fg",
+        type=float,
+        default=None,
+        help="The percentage of foreground noise to add.",
+    )
+    parser.add_argument(
+        "--noise_percent_bg",
+        type=float,
+        default=None,
+        help="The percentage of background noise to add.",
+    )
+    parser.add_argument(
+        "--noise_radius_min",
+        type=float,
+        default=None,
+        help="The minimum radius of the noise.",
+    )
+    parser.add_argument(
+        "--noise_radius_max",
+        type=float,
+        default=None,
+        help="The maximum radius of the noise.",
+    )
+    parser.add_argument(
+        "-o",
+        "--output_path",
+        type=str,
+        default=None,
+        help="The path to the output directory.",
+    )
 
-    parser.add_argument('--format', type=str, default='parquet', help='The format to read/write the simulated point clouds in. Defaults to parquet. Supported formats: parquet, csv.')
-    parser.add_argument('--seed', type=int, default=None, help='The random seed to use. If not specified, no seed is set.')
-    parser.add_argument('--workers', type=int, default=8, help='The number of workers to use for multiprocessing. Defaults to 8.')
-    parser.add_argument('--overwrite', action='store_true', help='Whether to overwrite the output files if they already exist.')
+    parser.add_argument(
+        "--format",
+        type=str,
+        default="parquet",
+        help="The format to read/write the simulated point clouds in. Defaults to parquet. Supported formats: parquet, csv.",
+    )
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=None,
+        help="The random seed to use. If not specified, no seed is set.",
+    )
+    parser.add_argument(
+        "--workers",
+        type=int,
+        default=8,
+        help="The number of workers to use for multiprocessing. Defaults to 8.",
+    )
+    parser.add_argument(
+        "--overwrite",
+        action="store_true",
+        help="Whether to overwrite the output files if they already exist.",
+    )
     args = parser.parse_args()
 
     # If the user did not specify any parameters, use the default parameters
@@ -233,15 +350,28 @@ def parse_args() -> argparse.Namespace:
 
     # Sanity checks
     assert args.structure in params, f"Unknown structure: {args.structure}."
-    assert args.format.strip('.').lower() in ["parquet", "csv"], f"Unknown format: {args.format}."
+    assert args.format.strip(".").lower() in [
+        "parquet",
+        "csv",
+    ], f"Unknown format: {args.format}."
     assert args.data_path is not None, "Please specify the path to the data directory."
-    assert args.output_path is not None, "Please specify the path to the output directory."
-    assert args.sample_percent >= 0 and args.sample_percent <= 1, "Sample percent must be between 0 and 1."
-    assert args.noise_percent_fg >= 0 and args.noise_percent_fg <= 1, "Noise percent (foreground) must be between 0 and 1."
-    assert args.noise_percent_bg >= 0 and args.noise_percent_bg <= 1, "Noise percent (background) must be between 0 and 1."
+    assert (
+        args.output_path is not None
+    ), "Please specify the path to the output directory."
+    assert (
+        args.sample_percent >= 0 and args.sample_percent <= 1
+    ), "Sample percent must be between 0 and 1."
+    assert (
+        args.noise_percent_fg >= 0 and args.noise_percent_fg <= 1
+    ), "Noise percent (foreground) must be between 0 and 1."
+    assert (
+        args.noise_percent_bg >= 0 and args.noise_percent_bg <= 1
+    ), "Noise percent (background) must be between 0 and 1."
     assert args.noise_radius_min >= 0, "Noise radius (min) must be non-negative."
     assert args.noise_radius_max >= 0, "Noise radius (max) must be non-negative."
-    assert args.noise_radius_min <= args.noise_radius_max, "Noise radius (min) must be less than or equal to noise radius (max)."
+    assert (
+        args.noise_radius_min <= args.noise_radius_max
+    ), "Noise radius (min) must be less than or equal to noise radius (max)."
     assert args.imprecision >= 0, "Imprecision must be non-negative."
 
     return args
@@ -252,9 +382,17 @@ if __name__ == "__main__":
     args = parse_args()
 
     # Load the points
-    files = glob.glob(os.path.join(args.data_path, f'{args.structure}_*.{args.format.strip(".").lower()}'))
+    files = glob.glob(
+        os.path.join(
+            args.data_path, f'{args.structure}_*.{args.format.strip(".").lower()}'
+        )
+    )
     files = sorted(files)  # To keep 1:1 correspondence with the input files
-    data = [load_parquet(file) for file in files] if args.format == "parquet" else [load_csv(file) for file in files]
+    data = (
+        [load_parquet(file) for file in files]
+        if args.format == "parquet"
+        else [load_csv(file) for file in files]
+    )
     assert len(data) > 0, f"No point clouds found in {args.data_path}."
     if args.n is None:
         print(f"Using all {len(data)} point clouds.")
@@ -268,7 +406,9 @@ if __name__ == "__main__":
     os.makedirs(args.output_path, exist_ok=True)
 
     if args.n == 1:
-        fname = os.path.join(args.output_path, f"{args.structure}.{args.format.strip('.').lower()}")
+        fname = os.path.join(
+            args.output_path, f"{args.structure}.{args.format.strip('.').lower()}"
+        )
         simulate_and_save(
             points=data[0],
             filename=fname,
@@ -289,7 +429,10 @@ if __name__ == "__main__":
         with tqdm(total=args.n, desc="Simulating thunderstorm") as pbar:
             with Pool(args.workers) as pool:
                 for i in range(args.n):
-                    fname = os.path.join(args.output_path, f"{args.structure}_{i}.{args.format.strip('.').lower()}")
+                    fname = os.path.join(
+                        args.output_path,
+                        f"{args.structure}_{i}.{args.format.strip('.').lower()}",
+                    )
                     ret = pool.apply_async(
                         simulate_and_save,
                         args=(
@@ -303,13 +446,15 @@ if __name__ == "__main__":
                             args.noise_percent_bg,
                             args.overwrite,
                         ),
-                        callback=lambda _: _update_pbar(pbar, cur, "Simulating thunderstorm"),
+                        callback=lambda _: _update_pbar(
+                            pbar, cur, "Simulating thunderstorm"
+                        ),
                     )
-                    
+
                     # Check for errors
                     if ret.get() is not None:
                         print(ret.get())
-                
+
                 pool.close()
                 pool.join()
 

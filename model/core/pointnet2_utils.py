@@ -9,9 +9,11 @@ import torch.nn.functional as F
 from time import time
 import numpy as np
 
+
 def timeit(tag, t):
     print("{}: {}s".format(tag, time() - t))
     return time()
+
 
 def pc_normalize(pc):
     l = pc.shape[0]
@@ -20,6 +22,7 @@ def pc_normalize(pc):
     m = np.max(np.sqrt(np.sum(pc**2, axis=1)))
     pc = pc / m
     return pc
+
 
 def square_distance(src, dst):
     """
@@ -40,8 +43,8 @@ def square_distance(src, dst):
     B, N, _ = src.shape
     _, M, _ = dst.shape
     dist = -2 * torch.matmul(src, dst.permute(0, 2, 1))
-    dist += torch.sum(src ** 2, -1).view(B, N, 1)
-    dist += torch.sum(dst ** 2, -1).view(B, 1, M)
+    dist += torch.sum(src**2, -1).view(B, N, 1)
+    dist += torch.sum(dst**2, -1).view(B, 1, M)
     return dist
 
 
@@ -60,7 +63,12 @@ def index_points(points, idx, dtype=torch.long):
     view_shape[1:] = [1] * (len(view_shape) - 1)
     repeat_shape = list(idx.shape)
     repeat_shape[0] = 1
-    batch_indices = torch.arange(B, dtype=dtype, device=device).to(device).view(view_shape).repeat(repeat_shape)
+    batch_indices = (
+        torch.arange(B, dtype=dtype, device=device)
+        .to(device)
+        .view(view_shape)
+        .repeat(repeat_shape)
+    )
     new_points = points[batch_indices.long(), idx.long(), :]
     return new_points
 
@@ -102,9 +110,14 @@ def query_ball_point(radius, nsample, xyz, new_xyz, dtype=torch.long):
     device = xyz.device
     B, N, C = xyz.shape
     _, S, _ = new_xyz.shape
-    group_idx = torch.arange(N, dtype=dtype, device=device).to(device).view(1, 1, N).repeat([B, S, 1])
+    group_idx = (
+        torch.arange(N, dtype=dtype, device=device)
+        .to(device)
+        .view(1, 1, N)
+        .repeat([B, S, 1])
+    )
     sqrdists = square_distance(new_xyz, xyz)
-    group_idx[sqrdists > radius ** 2] = N
+    group_idx[sqrdists > radius**2] = N
     group_idx = group_idx.sort(dim=-1)[0][:, :, :nsample]
     group_first = group_idx[:, :, 0].view(B, S, 1).repeat([1, 1, nsample])
     mask = group_idx == N
@@ -112,7 +125,9 @@ def query_ball_point(radius, nsample, xyz, new_xyz, dtype=torch.long):
     return group_idx
 
 
-def sample_and_group(npoint, radius, nsample, xyz, points, returnfps=False, dtype=torch.long):
+def sample_and_group(
+    npoint, radius, nsample, xyz, points, returnfps=False, dtype=torch.long
+):
     """
     Input:
         npoint:
@@ -126,15 +141,17 @@ def sample_and_group(npoint, radius, nsample, xyz, points, returnfps=False, dtyp
     """
     B, N, C = xyz.shape
     S = npoint
-    fps_idx = farthest_point_sample(xyz, npoint, dtype=dtype) # [B, npoint, C]
+    fps_idx = farthest_point_sample(xyz, npoint, dtype=dtype)  # [B, npoint, C]
     new_xyz = index_points(xyz, fps_idx, dtype=dtype)
     idx = query_ball_point(radius, nsample, xyz, new_xyz, dtype=dtype)
-    grouped_xyz = index_points(xyz, idx, dtype=dtype) # [B, npoint, nsample, C]
+    grouped_xyz = index_points(xyz, idx, dtype=dtype)  # [B, npoint, nsample, C]
     grouped_xyz_norm = grouped_xyz - new_xyz.view(B, S, 1, C)
 
     if points is not None:
         grouped_points = index_points(points, idx, dtype=dtype)
-        new_points = torch.cat([grouped_xyz_norm, grouped_points], dim=-1) # [B, npoint, nsample, C+D]
+        new_points = torch.cat(
+            [grouped_xyz_norm, grouped_points], dim=-1
+        )  # [B, npoint, nsample, C+D]
     else:
         new_points = grouped_xyz_norm
     if returnfps:
@@ -164,7 +181,9 @@ def sample_and_group_all(xyz, points):
 
 
 class PointNetSetAbstraction(nn.Module):
-    def __init__(self, npoint, radius, nsample, in_channel, mlp, group_all, dtype=torch.long):
+    def __init__(
+        self, npoint, radius, nsample, in_channel, mlp, group_all, dtype=torch.long
+    ):
         super(PointNetSetAbstraction, self).__init__()
         self.npoint = npoint
         self.radius = radius
@@ -179,6 +198,7 @@ class PointNetSetAbstraction(nn.Module):
         self.group_all = group_all
 
         self.dtype = dtype
+
     def forward(self, xyz, points):
         """
         Input:
@@ -195,13 +215,15 @@ class PointNetSetAbstraction(nn.Module):
         if self.group_all:
             new_xyz, new_points = sample_and_group_all(xyz, points)
         else:
-            new_xyz, new_points = sample_and_group(self.npoint, self.radius, self.nsample, xyz, points, dtype=self.dtype)
+            new_xyz, new_points = sample_and_group(
+                self.npoint, self.radius, self.nsample, xyz, points, dtype=self.dtype
+            )
         # new_xyz: sampled points position data, [B, npoint, C]
         # new_points: sampled points data, [B, npoint, nsample, C+D]
-        new_points = new_points.permute(0, 3, 2, 1) # [B, C+D, nsample,npoint]
+        new_points = new_points.permute(0, 3, 2, 1)  # [B, C+D, nsample,npoint]
         for i, conv in enumerate(self.mlp_convs):
             bn = self.mlp_bns[i]
-            new_points =  F.relu(bn(conv(new_points)))
+            new_points = F.relu(bn(conv(new_points)))
 
         new_points = torch.max(new_points, 2)[0]
         new_xyz = new_xyz.permute(0, 2, 1)
@@ -209,7 +231,9 @@ class PointNetSetAbstraction(nn.Module):
 
 
 class PointNetSetAbstractionMsg(nn.Module):
-    def __init__(self, npoint, radius_list, nsample_list, in_channel, mlp_list, dtype=torch.long):
+    def __init__(
+        self, npoint, radius_list, nsample_list, in_channel, mlp_list, dtype=torch.long
+    ):
         super(PointNetSetAbstractionMsg, self).__init__()
         self.npoint = npoint
         self.radius_list = radius_list
@@ -244,7 +268,9 @@ class PointNetSetAbstractionMsg(nn.Module):
 
         B, N, C = xyz.shape
         S = self.npoint
-        new_xyz = index_points(xyz, farthest_point_sample(xyz, S, dtype=self.dtype), dtype=self.dtype)
+        new_xyz = index_points(
+            xyz, farthest_point_sample(xyz, S, dtype=self.dtype), dtype=self.dtype
+        )
         new_points_list = []
         for i, radius in enumerate(self.radius_list):
             K = self.nsample_list[i]
@@ -261,7 +287,7 @@ class PointNetSetAbstractionMsg(nn.Module):
             for j in range(len(self.conv_blocks[i])):
                 conv = self.conv_blocks[i][j]
                 bn = self.bn_blocks[i][j]
-                grouped_points =  F.relu(bn(conv(grouped_points)))
+                grouped_points = F.relu(bn(conv(grouped_points)))
             new_points = torch.max(grouped_points, 2)[0]  # [B, D', S]
             new_points_list.append(new_points)
 
@@ -272,13 +298,13 @@ class PointNetSetAbstractionMsg(nn.Module):
 
 class PointNetFeaturePropagation(nn.Module):
     # def __init__(self, in_channel, mlp):
-    def __init__(self, in_channel, mlp, activation='relu', dtype=torch.long):
+    def __init__(self, in_channel, mlp, activation="relu", dtype=torch.long):
         super(PointNetFeaturePropagation, self).__init__()
         self.mlp_convs = nn.ModuleList()
         self.mlp_bns = nn.ModuleList()
         last_channel = in_channel
         self.activation = activation
-        assert activation in ['relu', None], 'activation must be relu or None'
+        assert activation in ["relu", None], "activation must be relu or None"
         for out_channel in mlp:
             self.mlp_convs.append(nn.Conv1d(last_channel, out_channel, 1))
             self.mlp_bns.append(nn.BatchNorm1d(out_channel))
@@ -313,7 +339,10 @@ class PointNetFeaturePropagation(nn.Module):
             dist_recip = 1.0 / (dists + 1e-8)
             norm = torch.sum(dist_recip, dim=2, keepdim=True)
             weight = dist_recip / norm
-            interpolated_points = torch.sum(index_points(points2, idx, dtype=self.dtype) * weight.view(B, N, 3, 1), dim=2)
+            interpolated_points = torch.sum(
+                index_points(points2, idx, dtype=self.dtype) * weight.view(B, N, 3, 1),
+                dim=2,
+            )
 
         if points1 is not None:
             points1 = points1.permute(0, 2, 1)
@@ -324,11 +353,10 @@ class PointNetFeaturePropagation(nn.Module):
         new_points = new_points.permute(0, 2, 1)
         for i, conv in enumerate(self.mlp_convs):
             bn = self.mlp_bns[i]
-            
+
             # To accomodate strategy 4, we need to disable activation for the last layer
-            if self.activation == 'relu':
+            if self.activation == "relu":
                 new_points = F.relu(bn(conv(new_points)))
             elif self.activation is None:
                 new_points = bn(conv(new_points))
         return new_points
-

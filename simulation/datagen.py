@@ -11,12 +11,16 @@ from structures import get_actin, get_microtubules, get_mito, get_npc, get_vesic
 from structures.helper import save_csv, save_parquet
 from storm.helper import simulate_thunderstorm
 import traceback
+
 # from concurrent.futures import ThreadPoolExecutor, as_completed
 # from threading import Thread
 
 
 def simulate(
-    structure_name: str, params: dict, disable_tqdm: bool = False, with_normals: bool = False
+    structure_name: str,
+    params: dict,
+    disable_tqdm: bool = False,
+    with_normals: bool = False,
 ) -> pd.DataFrame:
     """Simulates the given structure, subject to the given parameters.
 
@@ -74,7 +78,7 @@ def simulate_and_save(
         no_storm (bool, optional): Whether to disable thunderstorm noise addition to the points. Defaults to False.
         seed (int, optional): The seed for the random number generator. Defaults to None.
     """
-    # Reset the random seed (needs to be done in each process, 
+    # Reset the random seed (needs to be done in each process,
     # otherwise multiple processes end up generating the same structures!)
     # See: https://stackoverflow.com/q/9209078/9168131
     if seed is not None:
@@ -85,16 +89,18 @@ def simulate_and_save(
     try:
         # Prevent unwanted simulations if the file already exists and overwrite is not set, also allows for resuming from a previous run
         points = (
-            simulate(structure, params, disable_tqdm=disable_tqdm, with_normals=with_normals)
+            simulate(
+                structure, params, disable_tqdm=disable_tqdm, with_normals=with_normals
+            )
             if overwrite or not os.path.exists(fname)
             else None
         )
 
         # Copy the original x, y, z columns to use as gt
         if points is not None:
-            points['x_gt'] = points['x']
-            points['y_gt'] = points['y']
-            points['z_gt'] = points['z']
+            points["x_gt"] = points["x"]
+            points["y_gt"] = points["y"]
+            points["z_gt"] = points["z"]
 
         # Add thunderstorm noise to the points
         if points is not None and not no_storm:
@@ -267,7 +273,11 @@ def main(
         cur = rotating_cursor()  # Small rotating cursor
 
         # Get unique seed for each structure
-        seeds = [seed + i for i in range(n)] if seed is not None else [None for _ in range(n)]
+        seeds = (
+            [seed + i for i in range(n)]
+            if seed is not None
+            else [None for _ in range(n)]
+        )
         with tqdm(total=args.n, desc=f"Progress {next(cur)}") as pbar:  # Progress bar
 
             # use multiprocessing pool
@@ -343,7 +353,6 @@ if __name__ == "__main__":
     if args.structure not in params and args.structure != "all":
         raise ValueError(f"Invalid structure: {args.structure}")
 
-
     if args.structure == "all":
         structures = params.keys()
     else:
@@ -380,9 +389,9 @@ if __name__ == "__main__":
 
         # Save the parameters
         json_dict = {
-            'structure_params': params_,
-            'storm_params': storm_params_,
-            'args': vars(args),
+            "structure_params": params_,
+            "storm_params": storm_params_,
+            "args": vars(args),
         }
         with open(os.path.join(prefix, f"params_{structure}.json"), "w") as f:
             json.dump(json_dict, f, indent=4)

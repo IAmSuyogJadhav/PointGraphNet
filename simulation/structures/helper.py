@@ -6,6 +6,7 @@ from .Bezier import Bezier
 # See if Cupy is installed
 try:
     import cupy as cp
+
     gpu_available = True
 except ImportError:  # CuPy not installed
     cp = None
@@ -20,18 +21,20 @@ except Exception:  # Cupy raises an exception if no CUDA device is available
 
 ## Common shapes and structures
 def trim_curve_to_length(points, min_length, max_length):
-    """Trim the curve to the given length. 
+    """Trim the curve to the given length.
 
     Args:
         points (np.array): Points on the curve
         length (float): Length of the curve
-    
+
     Returns:
         np.array: Points on the curve, trimmed to the given length
     """
     # Calculate the cumulative sum of the distances between the points, length[i] is the length of the curve up to point i
-    lengths = np.cumsum(np.sqrt(np.sum((points[:-1] - points[1:])**2, axis=1)))
-    lengths = np.insert(lengths, 0, 0)  # insert a 0 at the beginning, to make the indexing work
+    lengths = np.cumsum(np.sqrt(np.sum((points[:-1] - points[1:]) ** 2, axis=1)))
+    lengths = np.insert(
+        lengths, 0, 0
+    )  # insert a 0 at the beginning, to make the indexing work
 
     # Check if the curve is long enough
     if lengths[-1] < min_length:
@@ -44,7 +47,9 @@ def trim_curve_to_length(points, min_length, max_length):
         return points, lengths[-1]
 
 
-def _get_bezier(n_control_points, npoints, max_xy, zlow, zhigh, min_length, max_length, **kwargs):
+def _get_bezier(
+    n_control_points, npoints, max_xy, zlow, zhigh, min_length, max_length, **kwargs
+):
     """
     Get the bezier curve for a given set of control points.
 
@@ -56,14 +61,16 @@ def _get_bezier(n_control_points, npoints, max_xy, zlow, zhigh, min_length, max_
         zhigh (int): Maximum z coordinate
         min_length (int): Minimum length of the bezier curve
         max_length (int): Maximum length of the bezier curve
-    
+
     Returns:
         np.array: x,y,z points of the bezier curve
     """
     # Generate the control points
-    con_points = np.random.rand(n_control_points, 3) \
-        * np.array([2 * max_xy, 2 * max_xy, zhigh - zlow])\
-        + np.array([-max_xy, -max_xy, zlow])  # Scale and shift the points to the given range
+    con_points = np.random.rand(n_control_points, 3) * np.array(
+        [2 * max_xy, 2 * max_xy, zhigh - zlow]
+    ) + np.array(
+        [-max_xy, -max_xy, zlow]
+    )  # Scale and shift the points to the given range
 
     # Get the bezier curve
     t_values = np.linspace(0, 1, npoints)
@@ -72,7 +79,9 @@ def _get_bezier(n_control_points, npoints, max_xy, zlow, zhigh, min_length, max_
     # Trim the curve to the given length
     points, length = trim_curve_to_length(points, min_length, max_length)
     if points is None:
-        print(f"Curve length: {length:.2f} nm, {n_control_points} control points (too short), skipping...")
+        print(
+            f"Curve length: {length:.2f} nm, {n_control_points} control points (too short), skipping..."
+        )
         return None, None
     else:
         # print(f"Curve length: {length:.2f} nm, {n_control_points} control points")
@@ -87,7 +96,7 @@ def _get_sphere(
     zhigh: int,
     max_xy: int = 2500,
     use_gpu: bool = True,
-    with_normals: bool=False,
+    with_normals: bool = False,
 ) -> np.ndarray:
     """Generate points on a sphere surface.
 
@@ -111,8 +120,12 @@ def _get_sphere(
         print("[LOG] GPU not available. Using CPU instead.")
 
     # Choose random theta and phi
-    t = lib.random.choice(lib.linspace(0, 360, points * 4), points)  # Theta (angle from z-axis)
-    p = lib.random.choice(lib.linspace(0, 360, points * 4), points)  # Phi (angle from x-axis)
+    t = lib.random.choice(
+        lib.linspace(0, 360, points * 4), points
+    )  # Theta (angle from z-axis)
+    p = lib.random.choice(
+        lib.linspace(0, 360, points * 4), points
+    )  # Phi (angle from x-axis)
     center = lib.array(np.full((points, 3), center))  # For vectorization
     r = lib.full(points, r)  # For vectorization
 
@@ -122,7 +135,7 @@ def _get_sphere(
     xyz[:, 1] = center[:, 1] + r * lib.sin(lib.deg2rad(t)) * lib.sin(lib.deg2rad(p))
     xyz[:, 2] = center[:, 2] + r * lib.cos(lib.deg2rad(t))
 
-     # Calculate the unit normals nx, ny, nz (unit normals), and store theta, phi (if needed)
+    # Calculate the unit normals nx, ny, nz (unit normals), and store theta, phi (if needed)
     if with_normals:
         nxyztp = lib.empty((points, 5), lib.float32)
 
@@ -131,7 +144,6 @@ def _get_sphere(
         nxyztp[:, 2] = lib.cos(lib.deg2rad(t))
         nxyztp[:, 3] = lib.deg2rad(t)
         nxyztp[:, 4] = lib.deg2rad(p)
-
 
     # Only keep the points that are within the specified boundary
     limit_low = lib.array([-max_xy, -max_xy, zlow])
@@ -148,7 +160,8 @@ def _get_sphere(
 
 ## I/O functions
 def save_csv(
-    filepath: str, df: pd.DataFrame, header_row: bool = True, overwrite: bool = False):
+    filepath: str, df: pd.DataFrame, header_row: bool = True, overwrite: bool = False
+):
     """Save the simulated points as a csv file, for use with testSTORM.
 
     Args:
@@ -173,8 +186,7 @@ def save_csv(
         df.to_csv(filepath, index=False, header=None)
 
 
-def save_parquet(
-    filepath: str, df: pd.DataFrame, overwrite: bool = False):
+def save_parquet(filepath: str, df: pd.DataFrame, overwrite: bool = False):
     """Save the simulated points as a parquet file. Parquet does not support header rows.
 
     Args:

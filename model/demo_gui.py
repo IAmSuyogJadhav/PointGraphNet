@@ -18,7 +18,7 @@ import platform
 import sys
 from inference import *
 
-isMacOS = (platform.system() == "Darwin")
+isMacOS = platform.system() == "Darwin"
 
 
 class Settings:
@@ -96,7 +96,7 @@ class Settings:
             "reflectance": 0.5,
             "clearcoat": 0.2,
             "clearcoat_roughness": 0.2,
-            "anisotropy": 0.0
+            "anisotropy": 0.0,
         },
         "Metal (rougher)": {
             "metallic": 1.0,
@@ -104,7 +104,7 @@ class Settings:
             "reflectance": 0.9,
             "clearcoat": 0.0,
             "clearcoat_roughness": 0.0,
-            "anisotropy": 0.0
+            "anisotropy": 0.0,
         },
         "Metal (smoother)": {
             "metallic": 1.0,
@@ -112,7 +112,7 @@ class Settings:
             "reflectance": 0.9,
             "clearcoat": 0.0,
             "clearcoat_roughness": 0.0,
-            "anisotropy": 0.0
+            "anisotropy": 0.0,
         },
         "Plastic": {
             "metallic": 0.0,
@@ -120,7 +120,7 @@ class Settings:
             "reflectance": 0.5,
             "clearcoat": 0.5,
             "clearcoat_roughness": 0.2,
-            "anisotropy": 0.0
+            "anisotropy": 0.0,
         },
         "Glazed ceramic": {
             "metallic": 0.0,
@@ -128,7 +128,7 @@ class Settings:
             "reflectance": 0.9,
             "clearcoat": 1.0,
             "clearcoat_roughness": 0.1,
-            "anisotropy": 0.0
+            "anisotropy": 0.0,
         },
         "Clay": {
             "metallic": 0.0,
@@ -136,7 +136,7 @@ class Settings:
             "reflectance": 0.5,
             "clearcoat": 0.1,
             "clearcoat_roughness": 0.287,
-            "anisotropy": 0.0
+            "anisotropy": 0.0,
         },
     }
 
@@ -158,7 +158,7 @@ class Settings:
             Settings.LIT: rendering.MaterialRecord(),
             Settings.UNLIT: rendering.MaterialRecord(),
             Settings.NORMALS: rendering.MaterialRecord(),
-            Settings.DEPTH: rendering.MaterialRecord()
+            Settings.DEPTH: rendering.MaterialRecord(),
         }
         self._materials[Settings.LIT].base_color = [0.9, 0.9, 0.9, 1.0]
         self._materials[Settings.LIT].shader = Settings.LIT
@@ -177,7 +177,7 @@ class Settings:
         self.apply_material = True
 
     def apply_material_prefab(self, name):
-        assert (self.material.shader == Settings.LIT)
+        assert self.material.shader == Settings.LIT
         prefab = Settings.PREFAB[name]
         for key, val in prefab.items():
             setattr(self.material, "base_" + key, val)
@@ -200,9 +200,7 @@ class AppWindow:
     DEFAULT_IBL = "default"
 
     MATERIAL_NAMES = ["Lit", "Unlit", "Normals", "Depth"]
-    MATERIAL_SHADERS = [
-        Settings.LIT, Settings.UNLIT, Settings.NORMALS, Settings.DEPTH
-    ]
+    MATERIAL_SHADERS = [Settings.LIT, Settings.UNLIT, Settings.NORMALS, Settings.DEPTH]
 
     def __init__(self, width, height):
         self.settings = Settings()
@@ -210,7 +208,8 @@ class AppWindow:
         self.settings.new_ibl_name = resource_path + "/" + AppWindow.DEFAULT_IBL
 
         self.window = gui.Application.instance.create_window(
-            "PointGraphNet - Open3D", width, height)
+            "PointGraphNet - Open3D", width, height
+        )
         w = self.window  # to make the code more concise
 
         # 3D widget
@@ -236,14 +235,16 @@ class AppWindow:
         # the spacing of the left, top, right, bottom margins. (This acts like
         # the 'padding' property in CSS.)
         self._settings_panel = gui.Vert(
-            0, gui.Margins(0.25 * em, 0.25 * em, 0.25 * em, 0.25 * em))
+            0, gui.Margins(0.25 * em, 0.25 * em, 0.25 * em, 0.25 * em)
+        )
 
         # Create a collapsible vertical widget, which takes up enough vertical
         # space for all its children when open, but only enough for text when
         # closed. This is useful for property pages, so the user can hide sets
         # of properties they rarely use.
-        view_ctrls = gui.CollapsableVert("View controls", 0.25 * em,
-                                         gui.Margins(em, 0, 0, 0))
+        view_ctrls = gui.CollapsableVert(
+            "View controls", 0.25 * em, gui.Margins(em, 0, 0, 0)
+        )
 
         self._arcball_button = gui.Button("Arcball")
         self._arcball_button.horizontal_padding_em = 0.5
@@ -314,8 +315,7 @@ class AppWindow:
         self._settings_panel.add_fixed(separation_height)
         self._settings_panel.add_child(view_ctrls)
 
-        advanced = gui.CollapsableVert("Advanced lighting", 0,
-                                       gui.Margins(em, 0, 0, 0))
+        advanced = gui.CollapsableVert("Advanced lighting", 0, gui.Margins(em, 0, 0, 0))
         advanced.set_is_open(False)
 
         self._use_ibl = gui.Checkbox("HDR map")
@@ -329,8 +329,7 @@ class AppWindow:
         advanced.add_child(h)
 
         self._ibl_map = gui.Combobox()
-        for ibl in glob.glob(gui.Application.instance.resource_path +
-                             "/*_ibl.ktx"):
+        for ibl in glob.glob(gui.Application.instance.resource_path + "/*_ibl.ktx"):
 
             self._ibl_map.add_item(os.path.basename(ibl[:-8]))
         self._ibl_map.selected_text = AppWindow.DEFAULT_IBL
@@ -368,8 +367,9 @@ class AppWindow:
         self._settings_panel.add_fixed(separation_height)
         self._settings_panel.add_child(advanced)
 
-        material_settings = gui.CollapsableVert("Material settings", 0,
-                                                gui.Margins(em, 0, 0, 0))
+        material_settings = gui.CollapsableVert(
+            "Material settings", 0, gui.Margins(em, 0, 0, 0)
+        )
 
         self._shader = gui.Combobox()
         self._shader.add_item(AppWindow.MATERIAL_NAMES[0])
@@ -430,16 +430,16 @@ class AppWindow:
                 file_menu.add_separator()
                 file_menu.add_item("Quit", AppWindow.MENU_QUIT)
             settings_menu = gui.Menu()
-            settings_menu.add_item("Lighting & Materials",
-                                   AppWindow.MENU_SHOW_SETTINGS)
+            settings_menu.add_item("Lighting & Materials", AppWindow.MENU_SHOW_SETTINGS)
             settings_menu.set_checked(AppWindow.MENU_SHOW_SETTINGS, True)
             help_menu = gui.Menu()
             help_menu.add_item("About", AppWindow.MENU_ABOUT)
 
             pointgraphnet_menu = gui.Menu()
             pointgraphnet_menu.add_item("Load Model", AppWindow.MENU_LOAD_MODEL)
-            pointgraphnet_menu.add_item("Perform 3D Reconstruction...", AppWindow.MENU_LOAD_POINTS)
-
+            pointgraphnet_menu.add_item(
+                "Perform 3D Reconstruction...", AppWindow.MENU_LOAD_POINTS
+            )
 
             menu = gui.Menu()
             if isMacOS:
@@ -464,18 +464,18 @@ class AppWindow:
         # window, so that the window can call the appropriate function when the
         # menu item is activated.
         w.set_on_menu_item_activated(AppWindow.MENU_OPEN, self._on_menu_open)
-        w.set_on_menu_item_activated(AppWindow.MENU_EXPORT,
-                                     self._on_menu_export)
+        w.set_on_menu_item_activated(AppWindow.MENU_EXPORT, self._on_menu_export)
         w.set_on_menu_item_activated(AppWindow.MENU_QUIT, self._on_menu_quit)
-        w.set_on_menu_item_activated(AppWindow.MENU_SHOW_SETTINGS,
-                                     self._on_menu_toggle_settings_panel)
+        w.set_on_menu_item_activated(
+            AppWindow.MENU_SHOW_SETTINGS, self._on_menu_toggle_settings_panel
+        )
         w.set_on_menu_item_activated(AppWindow.MENU_ABOUT, self._on_menu_about)
         w.set_on_menu_item_activated(AppWindow.MENU_LOAD_MODEL, self._on_load_model)
         w.set_on_menu_item_activated(AppWindow.MENU_LOAD_POINTS, self._on_load_points)
         # ----
 
         # PointGraphNet Stuff
-        self.ckpt_dir=DEFAULT_CKPT_DIR
+        self.ckpt_dir = DEFAULT_CKPT_DIR
         self.input_file = None
         self.noise_thresh = NOISE_THRESH
         self.max_n = MAX_N
@@ -484,25 +484,27 @@ class AppWindow:
         self.model = None
         self.params = None
         self.depth = 8
-        self.failure_message = ''
+        self.failure_message = ""
 
         self._apply_settings()
 
         # Pre-load model
         if os.path.isdir(self.ckpt_dir):
-            print('Loading model...')
+            print("Loading model...")
             self.load_model(self.ckpt_dir, self.device)
-            print('Done!') 
-            
+            print("Done!")
+
             # Show a message box stating that the model was loaded
             self._show_message_box("Default model loaded successfully.")
         else:
-            print('No model found at specified checkpoint directory. Please load a model before performing inference.')
+            print(
+                "No model found at specified checkpoint directory. Please load a model before performing inference."
+            )
 
             # Show a message box stating that the model was not loaded
-            self._show_message_box("No model found at the default checkpoint directory. Please load a model before performing inference.")
-
-
+            self._show_message_box(
+                "No model found at the default checkpoint directory. Please load a model before performing inference."
+            )
 
     ## PointGraphNet Stuff
     def load_model(self, ckpt_dir, device):
@@ -513,38 +515,46 @@ class AppWindow:
             print(e)
             self.failure_message = str(e)
             return 1
-    
+
     def do_inference(self, input_file):
         # Load points
-        print(f'Loading points from {input_file}...')
+        print(f"Loading points from {input_file}...")
         graphs = load_points(input_file, self.max_n)
         if graphs is None:
-            print('Failed to load points. Exiting...')
-            self.failure_message = 'Failed to load points. Make sure the file is in the correct format.'
+            print("Failed to load points. Exiting...")
+            self.failure_message = (
+                "Failed to load points. Make sure the file is in the correct format."
+            )
             return 1
-        print('Done!')
+        print("Done!")
 
         # Perform inference
-        print('Performing inference...')
+        print("Performing inference...")
         dfs = []
         for i, g in enumerate(graphs):
-            df = infer(self.model, g, self.params['model']['strategy'], self.noise_thresh, self.device)
+            df = infer(
+                self.model,
+                g,
+                self.params["model"]["strategy"],
+                self.noise_thresh,
+                self.device,
+            )
             dfs.append(df)
-            print(f'{i+1}/{len(graphs)}', end='\r')
-        
+            print(f"{i+1}/{len(graphs)}", end="\r")
+
         df = pd.concat(dfs)
 
         # Get rid of nans
         df.dropna(inplace=True)
 
         # Drop duplicates (if any)
-        df = df.drop_duplicates(subset=['x', 'y', 'z'], keep='first')
-        print('Done!')
+        df = df.drop_duplicates(subset=["x", "y", "z"], keep="first")
+        print("Done!")
 
         # Get the 3D mesh and pcd
-        print('Generating mesh...')
+        print("Generating mesh...")
         mesh, pcd = get_3d_mesh(df, depth=self.depth, noise_label=NOISE_LABEL)
-        print('Done!')
+        print("Done!")
 
         # Clear the scene
         self._scene.scene.clear_geometry()
@@ -563,7 +573,7 @@ class AppWindow:
             print(e)
             self.failure_message = "Mesh visualization failed."
             return 1
-        
+
         # Add pcd to the scene, with transparency
         # pcd.material = material.Material(
         #    metallic=0.0,
@@ -573,16 +583,15 @@ class AppWindow:
         # double_sided=True,
         # blend=material.BlendMode.TRANSLUCENT,
         # )
-        # self._scene.scene.add_geometry(pcd)        
+        # self._scene.scene.add_geometry(pcd)
 
         return 0
 
     def _on_load_model(self):
-        dlg = gui.FileDialog(gui.FileDialog.OPEN, "Choose file to load",
-                             self.window.theme)
-        dlg.add_filter(
-            ".pth",
-            "PyTorch model files (.pth)")
+        dlg = gui.FileDialog(
+            gui.FileDialog.OPEN, "Choose file to load", self.window.theme
+        )
+        dlg.add_filter(".pth", "PyTorch model files (.pth)")
         dlg.add_filter("", "All files")
 
         # A file dialog MUST define on_cancel and on_done functions
@@ -601,10 +610,14 @@ class AppWindow:
 
         # Add the text
         dlg_layout = gui.Vert(em, gui.Margins(em, em, em, em))
-        dlg_layout.add_child(gui.Label(
-            "Model loaded successfully!" if ret == 0 else 
-            "Failed to load model! Error Details:\n" + self.failure_message))
-        self.failure_message = ''
+        dlg_layout.add_child(
+            gui.Label(
+                "Model loaded successfully!"
+                if ret == 0
+                else "Failed to load model! Error Details:\n" + self.failure_message
+            )
+        )
+        self.failure_message = ""
 
         # Add the Ok button. We need to define a callback function to handle
         # the click.
@@ -632,11 +645,13 @@ class AppWindow:
 
             # Add the text
             dlg_layout = gui.Vert(em, gui.Margins(em, em, em, em))
-            dlg_layout.add_child(gui.Label(
-                "No model loaded. Please load a model first! "
-                "(PointGraphNet -> Load Model)\n"
-                ))
-            self.failure_message = ''
+            dlg_layout.add_child(
+                gui.Label(
+                    "No model loaded. Please load a model first! "
+                    "(PointGraphNet -> Load Model)\n"
+                )
+            )
+            self.failure_message = ""
 
             # Add the Ok button. We need to define a callback function to handle
             # the click.
@@ -657,15 +672,12 @@ class AppWindow:
             self.window.show_dialog(dlg)
             return
 
-        dlg = gui.FileDialog(gui.FileDialog.OPEN, "Choose file to load",
-                                self.window.theme)
-        dlg.add_filter(
-            ".csv",
-            "Comma-separated values (.csv)")
-        dlg.add_filter(".tsv",
-            "Tab-separated values (.tsv)")
-        dlg.add_filter(".parquet",
-            "Apache Parquet (.parquet)")
+        dlg = gui.FileDialog(
+            gui.FileDialog.OPEN, "Choose file to load", self.window.theme
+        )
+        dlg.add_filter(".csv", "Comma-separated values (.csv)")
+        dlg.add_filter(".tsv", "Tab-separated values (.tsv)")
+        dlg.add_filter(".parquet", "Apache Parquet (.parquet)")
         dlg.add_filter("", "All files")
 
         # A file dialog MUST define on_cancel and on_done functions
@@ -686,10 +698,14 @@ class AppWindow:
 
         # Add the text
         dlg_layout = gui.Vert(em, gui.Margins(em, em, em, em))
-        dlg_layout.add_child(gui.Label(
-            "Inference Done Successfully!" if ret == 0 else 
-            "Inference failed! Error Details:\n" + self.failure_message))
-        self.failure_message = ''
+        dlg_layout.add_child(
+            gui.Label(
+                "Inference Done Successfully!"
+                if ret == 0
+                else "Inference failed! Error Details:\n" + self.failure_message
+            )
+        )
+        self.failure_message = ""
 
         # Add the Ok button. We need to define a callback function to handle
         # the click.
@@ -739,27 +755,31 @@ class AppWindow:
 
     def _apply_settings(self):
         bg_color = [
-            self.settings.bg_color.red, self.settings.bg_color.green,
-            self.settings.bg_color.blue, self.settings.bg_color.alpha
+            self.settings.bg_color.red,
+            self.settings.bg_color.green,
+            self.settings.bg_color.blue,
+            self.settings.bg_color.alpha,
         ]
         self._scene.scene.set_background(bg_color)
         self._scene.scene.show_skybox(self.settings.show_skybox)
         self._scene.scene.show_axes(self.settings.show_axes)
         if self.settings.new_ibl_name is not None:
-            self._scene.scene.scene.set_indirect_light(
-                self.settings.new_ibl_name)
+            self._scene.scene.scene.set_indirect_light(self.settings.new_ibl_name)
             # Clear new_ibl_name, so we don't keep reloading this image every
             # time the settings are applied.
             self.settings.new_ibl_name = None
         self._scene.scene.scene.enable_indirect_light(self.settings.use_ibl)
         self._scene.scene.scene.set_indirect_light_intensity(
-            self.settings.ibl_intensity)
+            self.settings.ibl_intensity
+        )
         sun_color = [
-            self.settings.sun_color.red, self.settings.sun_color.green,
-            self.settings.sun_color.blue
+            self.settings.sun_color.red,
+            self.settings.sun_color.green,
+            self.settings.sun_color.blue,
         ]
-        self._scene.scene.scene.set_sun_light(self.settings.sun_dir, sun_color,
-                                              self.settings.sun_intensity)
+        self._scene.scene.scene.set_sun_light(
+            self.settings.sun_dir, sun_color, self.settings.sun_intensity
+        )
         self._scene.scene.scene.enable_sun_light(self.settings.use_sun)
 
         if self.settings.apply_material:
@@ -775,12 +795,13 @@ class AppWindow:
         self._sun_intensity.int_value = self.settings.sun_intensity
         self._sun_dir.vector_value = self.settings.sun_dir
         self._sun_color.color_value = self.settings.sun_color
-        self._material_prefab.enabled = (
-            self.settings.material.shader == Settings.LIT)
-        c = gui.Color(self.settings.material.base_color[0],
-                      self.settings.material.base_color[1],
-                      self.settings.material.base_color[2],
-                      self.settings.material.base_color[3])
+        self._material_prefab.enabled = self.settings.material.shader == Settings.LIT
+        c = gui.Color(
+            self.settings.material.base_color[0],
+            self.settings.material.base_color[1],
+            self.settings.material.base_color[2],
+            self.settings.material.base_color[3],
+        )
         self._material_color.color_value = c
         self._point_size.double_value = self.settings.material.point_size
 
@@ -794,9 +815,10 @@ class AppWindow:
         height = min(
             r.height,
             self._settings_panel.calc_preferred_size(
-                layout_context, gui.Widget.Constraints()).height)
-        self._settings_panel.frame = gui.Rect(r.get_right() - width, r.y, width,
-                                              height)
+                layout_context, gui.Widget.Constraints()
+            ).height,
+        )
+        self._settings_panel.frame = gui.Rect(r.get_right() - width, r.y, width, height)
 
     def _set_mouse_mode_rotate(self):
         self._scene.set_view_controls(gui.SceneWidget.Controls.ROTATE_CAMERA)
@@ -875,7 +897,10 @@ class AppWindow:
 
     def _on_material_color(self, color):
         self.settings.material.base_color = [
-            color.red, color.green, color.blue, color.alpha
+            color.red,
+            color.green,
+            color.blue,
+            color.alpha,
         ]
         self.settings.apply_material = True
         self._apply_settings()
@@ -886,16 +911,17 @@ class AppWindow:
         self._apply_settings()
 
     def _on_menu_open(self):
-        dlg = gui.FileDialog(gui.FileDialog.OPEN, "Choose file to load",
-                             self.window.theme)
+        dlg = gui.FileDialog(
+            gui.FileDialog.OPEN, "Choose file to load", self.window.theme
+        )
         dlg.add_filter(
             ".ply .stl .fbx .obj .off .gltf .glb",
-            "Triangle mesh files (.ply, .stl, .fbx, .obj, .off, "
-            ".gltf, .glb)")
+            "Triangle mesh files (.ply, .stl, .fbx, .obj, .off, " ".gltf, .glb)",
+        )
         dlg.add_filter(
             ".xyz .xyzn .xyzrgb .ply .pcd .pts",
-            "Point cloud files (.xyz, .xyzn, .xyzrgb, .ply, "
-            ".pcd, .pts)")
+            "Point cloud files (.xyz, .xyzn, .xyzrgb, .ply, " ".pcd, .pts)",
+        )
         dlg.add_filter(".ply", "Polygon files (.ply)")
         dlg.add_filter(".stl", "Stereolithography files (.stl)")
         dlg.add_filter(".fbx", "Autodesk Filmbox files (.fbx)")
@@ -905,8 +931,7 @@ class AppWindow:
         dlg.add_filter(".glb", "OpenGL binary transfer files (.glb)")
         dlg.add_filter(".xyz", "ASCII point cloud files (.xyz)")
         dlg.add_filter(".xyzn", "ASCII point cloud with normals (.xyzn)")
-        dlg.add_filter(".xyzrgb",
-                       "ASCII point cloud files with colors (.xyzrgb)")
+        dlg.add_filter(".xyzrgb", "ASCII point cloud files with colors (.xyzrgb)")
         dlg.add_filter(".pcd", "Point Cloud Data files (.pcd)")
         dlg.add_filter(".pts", "3D Points files (.pts)")
         dlg.add_filter("", "All files")
@@ -924,8 +949,9 @@ class AppWindow:
         self.load(filename)
 
     def _on_menu_export(self):
-        dlg = gui.FileDialog(gui.FileDialog.SAVE, "Choose file to save",
-                             self.window.theme)
+        dlg = gui.FileDialog(
+            gui.FileDialog.SAVE, "Choose file to save", self.window.theme
+        )
         dlg.add_filter(".png", "PNG files (.png)")
         dlg.set_on_cancel(self._on_file_dialog_cancel)
         dlg.set_on_done(self._on_export_dialog_done)
@@ -942,7 +968,8 @@ class AppWindow:
     def _on_menu_toggle_settings_panel(self):
         self._settings_panel.visible = not self._settings_panel.visible
         gui.Application.instance.menubar.set_checked(
-            AppWindow.MENU_SHOW_SETTINGS, self._settings_panel.visible)
+            AppWindow.MENU_SHOW_SETTINGS, self._settings_panel.visible
+        )
 
     def _on_menu_about(self):
         # Show a simple dialog. Although the Dialog is actually a widget, you can
@@ -953,24 +980,25 @@ class AppWindow:
 
         # Add the text
         dlg_layout = gui.Vert(em, gui.Margins(em, em, em, em))
-        dlg_layout.add_child(gui.Label(
-            "PointGraphNet Demo\n"
-            "By: Suyog S. Jadhav, May 2023\n"
-            "************************************\n\n"
-            "How to use:\n"
-            "1. Load one of the pretrained models by clicking on PointGraphNet->Load Model."
-            "You can find the pretrained models under core/static/weights folder.\n"
-            "2. Run the model on a point cloud file by clicking on PointGraphNet->Perform 3D Reconstruction... . These formats are supported:"
-            ".csv, .tsv, and .parquet. The file must have at least 3 columns for x, y, and z coordinates."
-            "If additional columns are there, make sure that the coordinates are marked with one of these common column headers:"
-            "[x, y, z], [X, Y, Z], ['x [nm]', 'y [nm]', 'z [nm]'], ['X [nm]', 'Y [nm]', 'Z [nm]'\n"
-            "You can some sample files under examples/\n"
-            "3. The output is shown on the demo screen, overlaid on the input point cloud.\n\n"
-            "************************************\n\n"
-            "Credits: This demo GUI is modified from Open3D's demo GUI example. Original source:"
-            "https://github.com/isl-org/Open3D/blob/master/examples/python/visualization/vis_gui.py"
-
-            ))
+        dlg_layout.add_child(
+            gui.Label(
+                "PointGraphNet Demo\n"
+                "By: Suyog S. Jadhav, May 2023\n"
+                "************************************\n\n"
+                "How to use:\n"
+                "1. Load one of the pretrained models by clicking on PointGraphNet->Load Model."
+                "You can find the pretrained models under core/static/weights folder.\n"
+                "2. Run the model on a point cloud file by clicking on PointGraphNet->Perform 3D Reconstruction... . These formats are supported:"
+                ".csv, .tsv, and .parquet. The file must have at least 3 columns for x, y, and z coordinates."
+                "If additional columns are there, make sure that the coordinates are marked with one of these common column headers:"
+                "[x, y, z], [X, Y, Z], ['x [nm]', 'y [nm]', 'z [nm]'], ['X [nm]', 'Y [nm]', 'Z [nm]'\n"
+                "You can some sample files under examples/\n"
+                "3. The output is shown on the demo screen, overlaid on the input point cloud.\n\n"
+                "************************************\n\n"
+                "Credits: This demo GUI is modified from Open3D's demo GUI example. Original source:"
+                "https://github.com/isl-org/Open3D/blob/master/examples/python/visualization/vis_gui.py"
+            )
+        )
 
         # Add the Ok button. We need to define a callback function to handle
         # the click.
@@ -1025,15 +1053,15 @@ class AppWindow:
                     self._scene.scene.add_model("__model__", mesh)
                 else:
                     # Point cloud
-                    self._scene.scene.add_geometry("__model__", geometry,
-                                                   self.settings.material)
+                    self._scene.scene.add_geometry(
+                        "__model__", geometry, self.settings.material
+                    )
                 bounds = self._scene.scene.bounding_box
                 self._scene.setup_camera(60, bounds, bounds.get_center())
             except Exception as e:
                 print(e)
 
     def export_image(self, path, width, height):
-
         def on_image(image):
             img = image
 
@@ -1057,8 +1085,7 @@ def main():
         if os.path.exists(path):
             w.load(path)
         else:
-            w.window.show_message_box("Error",
-                                      "Could not open file '" + path + "'")
+            w.window.show_message_box("Error", "Could not open file '" + path + "'")
 
     # Run the event loop. This will not return until the last window is closed.
     gui.Application.instance.run()

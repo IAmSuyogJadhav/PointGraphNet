@@ -33,7 +33,7 @@ else:
 STRATEGY = 2
 DATA_PATH = ["../simulation/data/v2_pgn"]
 PICK_PERCENT = 1.0  # Fraction of data to use (per class, per dataset)
-_d = '+'.join([os.path.basename(d) for d in DATA_PATH])
+_d = "+".join([os.path.basename(d) for d in DATA_PATH])
 run_prefix = f"strategy{STRATEGY}_metrics_run1_{_d}"
 print(run_prefix)
 
@@ -42,7 +42,7 @@ params = {
         "in_channels": 3,  # x, y, z
         "feat_channels": 64,  # N_feat
         "out_channels": 3,  # useless parameter, overriden by strategy
-        "K": 4, # number of nearest neighbors to use
+        "K": 4,  # number of nearest neighbors to use
         "strategy": STRATEGY,  # 1 = predict theta, phi and calculate norm from them
     },
     "dataset": {
@@ -51,13 +51,15 @@ params = {
         "max_cache_size": -1,  # -1 = no limit, cache all point clouds
         # "max_cache_size": 0,  # 0 = no cache, each epoch will sample a new set of points
         # "max_cache_size": 10000,  # 10000 = cache 10k point clouds, the cached point clouds will have the same sample of points each epoch, rest will be sampled randomly each epoch
-        "sample_size": 10000 if not scratch_run else 1000,  # Number of points to sample from each point cloud
+        "sample_size": 10000
+        if not scratch_run
+        else 1000,  # Number of points to sample from each point cloud
         "replace": True,  # sample with replacement, required when sample_size > size of the smallest point cloud
         "pick_percent": PICK_PERCENT,
         "no_torch": False,  # Faster training with no_torch=False (saves a copy of the point clouds to GPU)
         "device": "cuda",  # "cuda" (for gpu) or "cpu"
-        'infer_mode': False,  # Setting to True disable GT functions, set to False for training
-        'n_jobs': 16,  # Number of processes to use for pynanoflann kdtree 
+        "infer_mode": False,  # Setting to True disable GT functions, set to False for training
+        "n_jobs": 16,  # Number of processes to use for pynanoflann kdtree
     },
     "dataloader": {
         "batch_size": 16,  # Number of point clouds per training batch
@@ -77,7 +79,7 @@ params = {
     },
     "loss": {
         "weigh_by_noise_prob": True,  # Weight the loss by the probability of noise
-        "normalization": 'exp',  # 'exp', 'log' or 'none'
+        "normalization": "exp",  # 'exp', 'log' or 'none'
     },
     "misc": {
         "seed": 42,  # for reproduciblity
@@ -152,13 +154,14 @@ loss = get_loss_fn(
 # Create the metric function
 def dummy(x, y):  # Use dummy metric (increases training speed)
     return torch.tensor(0.0).cuda(), torch.tensor(0.0).cuda(), torch.tensor(0.0).cuda()
+
+
 # metric = get_metric_fn(strategy=params["model"]["strategy"], K=params["model"]["K"])
-metric = dummy; print('*************** USING DUMMY METRIC ***************')
+metric = dummy
+print("*************** USING DUMMY METRIC ***************")
 
 # Main training loop
-train(
-    model, optimizer, scheduler, loss, metric, train_loader, val_loader, params
-)
+train(model, optimizer, scheduler, loss, metric, train_loader, val_loader, params)
 
 # Plot the training history and save
 try:
@@ -170,7 +173,6 @@ try:
     plt.legend()
     plt.savefig(os.path.join(params["training"]["save_dir"], "loss.png"))
     plt.close()
-
 
     plt.plot(history["train_norm_loss"], label="train_norm")
     plt.plot(history["val_norm_loss"], label="val_norm")

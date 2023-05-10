@@ -5,7 +5,9 @@ from .Bridson_sampling import Bridson_sampling
 from .helper import _get_sphere
 
 
-def get_npc(params: dict, disable_tqdm: bool = False, with_normals: bool=False) -> pd.DataFrame:
+def get_npc(
+    params: dict, disable_tqdm: bool = False, with_normals: bool = False
+) -> pd.DataFrame:
     """Simulate Nuclear Pore Complexes with the given parameters.
 
     Args:
@@ -119,9 +121,12 @@ def get_npc(params: dict, disable_tqdm: bool = False, with_normals: bool=False) 
     points = np.concatenate([points, instance_ids[:, None]], axis=1)
 
     # Convert to pandas dataframe
-    columns = ["x", "y", "z"] + \
-        (["nx", "ny", "nz", "theta", "phi"] if with_normals else []) + ["instance_id"]
+    columns = (
+        ["x", "y", "z"]
+        + (["nx", "ny", "nz", "theta", "phi"] if with_normals else [])
+        + ["instance_id"]
+    )
     points = pd.DataFrame(points, columns=columns).reset_index(drop=True)
-    points['label'] = 'npc'  # add label column
+    points["label"] = "npc"  # add label column
 
     return points
