@@ -10,11 +10,12 @@ from core import (
     write_ply
 )
 import open3d as o3d
+from tqdm.auto import tqdm
 
 # Some constants
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 DEFAULT_CKPT_DIR = 'core/static/weights/strategy1_run2_v2_pgn'
-MAX_N = 100000
+MAX_N = 40000
 LABEL = 'foreground'
 NOISE_LABEL = 'noise'
 NOISE_THRESH = 0.5
@@ -44,7 +45,6 @@ def load_model(ckpt_dir: str, device: torch.device = DEVICE):
 
     # Load the saved weights
     model.load_state_dict(params['state_dict'])
-    model.half()  #debug
     model.eval()
 
     del params['state_dict']  # Save memory
@@ -109,23 +109,52 @@ def to_graph(points: pd.DataFrame, max_n: int = MAX_N, label: str = LABEL, devic
                     except:
                         print('Could not find xyz columns in the given file.')
                         return None
-                
+    
+    # # Bring the points to the right format 
+    # points.columns = ['x', 'y', 'z']
+    # points['label'] = label
+    # points['theta'] = 0
+    # points['phi'] = 0
+
     # Check if max_n is exceeded
+    points = points.to_numpy()
+    n_points = len(points)
     max_n_exceeded = max_n > 0 and len(points) > max_n
+    ps = []
     if max_n_exceeded:
-        points = points.sample(n=max_n)
-        print(f'Sampling {max_n} points out of {len(points)} total points. Set max_n to -1 to use all points.')
+        # Split the points into random batches of size max_n
+        np.random.shuffle(points)
+        pbar = tqdm(total=len(points), leave=False, desc='Loading points')
+        while len(points) > max_n:
+            pbar.update(1)
+            ps.append(points[:max_n])
+            points = points[max_n:]
+            # ps.append(points.loc[:max_n])
+            # # ps.append(points.sample(max_n))
+            # points = points.drop(ps[-1].index)
+            pbar.update(max_n-1)
+        
+        # Make sure the last batch is not too small
+        if len(points) > 0:
+            ps.append(np.vstack((ps[-1][:max_n - len(points)], points)))
+        pbar.update(len(points))
+        pbar.close()
+    
+    else:
+        ps.append(points)
 
     # Convert to the PointsGraph format
-    points.columns = ['x', 'y', 'z']
-    points['label'] = label
-    points['theta'] = 0
-    points['phi'] = 0
+    graphs = []
+    for p in tqdm(ps, leave=False, total=len(ps), desc='Converting to PointsGraph'):
+        d = pd.DataFrame(p, columns=['x', 'y', 'z'])
+        d['label'] = label
+        d['theta'] = 0
+        d['phi'] = 0
+        graphs.append(PointsGraph(d, pick_first_n=None, device=device))
 
-    graph = PointsGraph(points, pick_first_n=None, infer_mode=True, device=device)
-    print(f'Loaded {len(graph)} points succesfully.')
+    print(f'Loaded {n_points} points succesfully.')
 
-    return graph
+    return graphs
 
 
 def infer(model: Model, graph: PointsGraph, strategy: int, noise_thresh: float = 0.5, device: str = DEVICE):
@@ -144,7 +173,8 @@ def infer(model: Model, graph: PointsGraph, strategy: int, noise_thresh: float =
     """
     # Perform inference
     with torch.no_grad():
-        out = model([graph])
+        with torch.cuda.amp.autocast():
+            out = model([graph])
     
     # Retrieve the predicted normals and noise probabilities
     if strategy == 1:
@@ -176,28 +206,58 @@ def infer(model: Model, graph: PointsGraph, strategy: int, noise_thresh: float =
     return df
 
 
-def save_ply(df: pd.DataFrame, path: str, noise_label: str = NOISE_LABEL):
+def get_3d_mesh(df: pd.DataFrame, depth: int = 8, noise_label: str = NOISE_LABEL):
     """
-    Save the inference results to the given path as PLY.
+    Get the 3D mesh from the given dataframe.
+
+    Args:
+        df (pd.DataFrame): The dataframe.
+        depth (int): The depth of the mesh. Defaults to 8.
+        noise_label (str): The noise label. Defaults to NOISE_LABEL.
+
+    Returns:
+        mesh (o3d.geometry.TriangleMesh): The mesh.
+        pcd (o3d.geometry.PointCloud): The point cloud.
+    """
+    # Create Open3D point cloud, remove noise
+    pcd = o3d.geometry.PointCloud()
+    pcd.points = o3d.utility.Vector3dVector(df[['x', 'y', 'z']][(df['label'] != noise_label)].values)
+    pcd.normals = o3d.utility.Vector3dVector(df[['nx', 'ny', 'nz']][(df['label'] != noise_label)].values)
+
+    # Create mesh
+    mesh, _ = o3d.geometry.TriangleMesh.create_from_point_cloud_poisson(pcd, depth=depth)
+
+    # Add the noisy points back for visualization
+    pcd.points = o3d.utility.Vector3dVector(df[['x', 'y', 'z']].values)
+    pcd.normals = o3d.utility.Vector3dVector(df[['nx', 'ny', 'nz']].values)
+
+    return mesh, pcd
+
+
+def save_3d(df: pd.DataFrame, path: str, noise_label: str = NOISE_LABEL, depth: int = 8):
+    """
+    Save the inference results to the given path as a 3D reconstruction.
+    Can be saved as .ply or .obj. The saved files are in ASCII format for
+    easy editing.
 
     Args:
         df (pd.DataFrame): The dataframe.
         path (str): The path.
         noise_label (str): The label to use for noise points. Defaults to NOISE_LABEL.
+        depth (int): The depth to use for the Screened Poisson reconstruction. Defaults to 8.
+    
+    Returns:
+        mesh (o3d.geometry.TriangleMesh): The mesh.
+        pcd (o3d.geometry.PointCloud): The point cloud.
     """
-    # Get rid of noise points
-    df = df[df['label'] != noise_label]
 
-    # Create Open3D point cloud
-    pcd = o3d.geometry.PointCloud()
-    pcd.points = o3d.utility.Vector3dVector(df[['x', 'y', 'z']].values)
-    pcd.normals = o3d.utility.Vector3dVector(df[['nx', 'ny', 'nz']].values)
-
-    # Create mesh
-    mesh, _ = o3d.geometry.TriangleMesh.create_from_point_cloud_poisson(pcd, depth=8)
+    # Obtain mesh
+    mesh, pcd = get_3d_mesh(df, depth=depth, noise_label=noise_label)
 
     # Save
-    o3d.io.write_triangle_mesh(path, mesh)
+    o3d.io.write_triangle_mesh(path, mesh, write_vertex_normals=True, write_ascii=True)
+
+    return mesh, pcd
 
 
 def save_csv(df: pd.DataFrame, path: str):
@@ -221,18 +281,24 @@ def save_outputs(df: pd.DataFrame, path: str, input_path: str, noise_label: str 
             If the directory does not exist, it will be created.
         input_path (str): The path to the input file.
         noise_label (str): The label to use for noise points. Defaults to NOISE_LABEL.
+    
+    Returns:
+        mesh (o3d.geometry.TriangleMesh): The mesh.
+        pcd (o3d.geometry.PointCloud): The point cloud.
     """
     # Create the directory if it does not exist
     os.makedirs(path, exist_ok=True)
 
-    # Save the points and their normals
-    save_csv(df, os.path.join(path, f'points_{os.path.basename(input_path)}.csv'))
+    # # Save the points and their normals
+    # save_csv(df, os.path.join(path, f'{os.path.basename(input_path)}_points.csv'))
 
     # Save PLY
-    save_ply(df, os.path.join(path, f'{os.path.basename(input_path)}.ply'))
+    mesh, pcd = save_3d(df, os.path.join(path, f'{os.path.basename(input_path)}_3D.ply'))
 
     # Save raw PLY
     write_ply(df, os.path.join(path, f'{os.path.basename(input_path)}_nomesh.ply'), noise_label=noise_label)
+
+    return mesh, pcd
 
 
 if __name__ == '__main__':
@@ -245,9 +311,13 @@ if __name__ == '__main__':
     parser.add_argument('-o', '--output_path', type=str, default=DEFAULT_OUTPUT_PATH, help='A directory path to save the outputs. If not specified, will be saved in the same directory as the input file.')
     
     parser.add_argument('--noise-thresh', type=float, default=NOISE_THRESH, help='The noise threshold. Defaults to 0.5.')
-    parser.add_argument('--max-n', type=int, default=MAX_N, help='The maximum number of points to use for inference. Defaults to 100k.')
+    parser.add_argument('--max-n', type=int, default=MAX_N, help='The maximum number of points to use in one batch. Defaults to 100k.')
     parser.add_argument('--device', type=str, default=DEVICE, help='The device to use for inference ("cpu", "cuda"). Defaults to "cuda".')
+    parser.add_argument('--visualize', action='store_true', help='Visualize the resulting 3D reconstruction.')
     args = parser.parse_args()
+
+    if args.max_n < 10000:
+        print('WARNING: max-n is set to a low value. This may result in poor performance. Consider increasing it to at least 10000.')
 
     # Load the model
     print(f'Loading model from {args.ckpt_dir}...')
@@ -256,18 +326,37 @@ if __name__ == '__main__':
     
     # Load the points
     print(f'Loading points from {args.input}...')
-    graph = load_points(args.input, args.max_n)
-    if graph is None:
+    graphs = load_points(args.input, args.max_n)
+    if graphs is None:
         print('Failed to load points. Exiting...')
         exit()
     print('Done!')
 
     # Perform inference
     print('Performing inference...')
-    df = infer(model, graph, params['model']['strategy'], args.noise_thresh, args.device)
+    dfs = []
+    for g in tqdm(graphs, leave=False, unit='batch'):
+        df = infer(model, g, params['model']['strategy'], args.noise_thresh, args.device)
+        dfs.append(df)
+
+    df = pd.concat(dfs)
+    
+    # Get rid of nans
+    df.dropna(inplace=True)
+
+    # Drop duplicates (if any)
+    df = df.drop_duplicates(subset=['x', 'y', 'z'], keep='first')
     print('Done!')
 
     # Save the outputs
     print(f'Saving outputs to {args.output_path}...')
-    save_outputs(df, args.output_path, args.input, NOISE_LABEL)
+    mesh, pcd = save_outputs(df, args.output_path, args.input, NOISE_LABEL)
     print('Done!')
+
+    # Visualize
+    if args.visualize:
+        print('Visualizing...')
+        o3d.visualization.draw_geometries([mesh, pcd])
+        print('Done!')
+
+ 

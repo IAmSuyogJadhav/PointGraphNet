@@ -173,7 +173,7 @@ def get_dataset(data_path, classes, max_cache_size=1000, sample_size=-1, replace
 
 # Model Definition
 class Encoder(nn.Module):
-    def __init__(self, in_channels=3, out_channels=64, strategy=None):
+    def __init__(self, in_channels=3, out_channels=64, strategy=None, dtype=torch.long):
         """PointNet++ model as the encoder.
 
         Args:
@@ -190,24 +190,28 @@ class Encoder(nn.Module):
         extra_ch = in_channels - 3  # Number of extra channels
         self.sa1 = pnet2.PointNetSetAbstractionMsg(
             1024, [0.05, 0.1], [16, 32], extra_ch, [[16, 16, 32], [32, 32, 64]]
+            , dtype=dtype
         )
         self.sa2 = pnet2.PointNetSetAbstractionMsg(
             256, [0.1, 0.2], [16, 32], 32 + 64, [[64, 64, 128], [64, 96, 128]]
+            , dtype=dtype
         )
         self.sa3 = pnet2.PointNetSetAbstractionMsg(
             64, [0.2, 0.4], [16, 32], 128 + 128, [[128, 196, 256], [128, 196, 256]]
+            , dtype=dtype
         )
         self.sa4 = pnet2.PointNetSetAbstractionMsg(
             16, [0.4, 0.8], [16, 32], 256 + 256, [[256, 256, 512], [256, 384, 512]]
+            , dtype=dtype
         )
-        self.fp4 = pnet2.PointNetFeaturePropagation(512 + 512 + 256 + 256, [256, 256])
-        self.fp3 = pnet2.PointNetFeaturePropagation(128 + 128 + 256, [256, 256])
-        self.fp2 = pnet2.PointNetFeaturePropagation(32 + 64 + 256, [256, 128])
+        self.fp4 = pnet2.PointNetFeaturePropagation(512 + 512 + 256 + 256, [256, 256], dtype=dtype)
+        self.fp3 = pnet2.PointNetFeaturePropagation(128 + 128 + 256, [256, 256], dtype=dtype)
+        self.fp2 = pnet2.PointNetFeaturePropagation(32 + 64 + 256, [256, 128], dtype=dtype)
 
         # Modified last layer
-        # self.fp1 = pnet2.PointNetFeaturePropagation(128, [128, 128, 128])
+        # self.fp1 = pnet2.PointNetFeaturePropagation(128, [128, 128, 128], dtype=dtype)
         activation = None if strategy == 4 else 'relu'
-        self.fp1 = pnet2.PointNetFeaturePropagation(128, [128, 128, 128, out_channels], activation=activation)
+        self.fp1 = pnet2.PointNetFeaturePropagation(128, [128, 128, 128, out_channels], activation=activation, dtype=dtype)
 
     def forward(self, xyz):
         """Forward pass of the model.
@@ -378,6 +382,7 @@ class Model(nn.Module):
         strategy=1,
         threshold=0.5,
         device="cuda",
+        dtype=torch.long,
     ):
         """Graph-augmented PointNet++ model. The input is a point cloud graph.
         The output is the normals for each point in the point cloud.
@@ -406,7 +411,7 @@ class Model(nn.Module):
         self.device = device
 
         # Model layers
-        self.encoder = Encoder(in_channels=in_channels, out_channels=feat_channels, strategy=strategy).to(
+        self.encoder = Encoder(in_channels=in_channels, out_channels=feat_channels, strategy=strategy, dtype=dtype).to(
             device
         )
 
@@ -547,8 +552,8 @@ class Model(nn.Module):
         pc = pc / m
         return pc
     
-    @torch.jit.script
-    def pc_normalize_batch(pc):
+    # @torch.jit.script
+    def pc_normalize_batch(self, pc):
         """Normalize the point cloud as per pointnet++ centroid normalization.
         Converted to a batched torch implementation from original source:
         https://github.com/yanx27/Pointnet_Pointnet2_pytorch/
