@@ -12,12 +12,6 @@ except ImportError:  # CuPy not installed
     cp = None
     gpu_available = False
 
-# Check if GPU is available
-try:
-    _ = cp is not None and cp.cuda.runtime.getDeviceCount() > 0
-except Exception:  # Cupy raises an exception if no CUDA device is available
-    gpu_available = False
-
 
 ## Common shapes and structures
 def trim_curve_to_length(points, min_length, max_length):

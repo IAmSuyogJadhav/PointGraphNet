@@ -1,5 +1,5 @@
-# PointGraphNet
-Supplementary code for INF-3990 Master's Thesis: "Reconstructing 3D geometries of sub-cellular structures from SMLM point clouds". Contains the code for the simulator used to generate the training data, as well as the code for the PointGraphNet model. Code for the simulator is in the `simulation` directory, and the code for the model is in the `model` directory.
+# PointNormalNet
+Supplementary code for INF-3990 Master's Thesis: "Reconstructing 3D geometries of sub-cellular structures from SMLM point clouds". Contains the code for the simulator used to generate the training data, as well as the code for the PointNormalNet model. Code for the simulator is in the `simulation` directory, and the code for the model is in the `model` directory.
 
 Each directory has its own README file with more details. The README for the simulator is [here](simulation/README.md), and the README for the model is [here](model/README.md).
 

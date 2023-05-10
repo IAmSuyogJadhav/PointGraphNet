@@ -1,4 +1,4 @@
-# PointGraphNet Demo, adapted from https://github.com/isl-org/Open3D/blob/master/examples/python/visualization/vis_gui.py
+# PointNormalNet Demo, adapted from https://github.com/isl-org/Open3D/blob/master/examples/python/visualization/vis_gui.py
 # Modified by: Suyog Jadhav, 10-05-2023
 
 # ----------------------------------------------------------------------------
@@ -208,7 +208,7 @@ class AppWindow:
         self.settings.new_ibl_name = resource_path + "/" + AppWindow.DEFAULT_IBL
 
         self.window = gui.Application.instance.create_window(
-            "PointGraphNet - Open3D", width, height
+            "PointNormalNet - Open3D", width, height
         )
         w = self.window  # to make the code more concise
 
@@ -435,9 +435,9 @@ class AppWindow:
             help_menu = gui.Menu()
             help_menu.add_item("About", AppWindow.MENU_ABOUT)
 
-            pointgraphnet_menu = gui.Menu()
-            pointgraphnet_menu.add_item("Load Model", AppWindow.MENU_LOAD_MODEL)
-            pointgraphnet_menu.add_item(
+            PointNormalNet_menu = gui.Menu()
+            PointNormalNet_menu.add_item("Load Model", AppWindow.MENU_LOAD_MODEL)
+            PointNormalNet_menu.add_item(
                 "Perform 3D Reconstruction...", AppWindow.MENU_LOAD_POINTS
             )
 
@@ -449,13 +449,13 @@ class AppWindow:
                 # About..., Preferences..., and Quit menu items typically go.
                 menu.add_menu("Example", app_menu)
                 menu.add_menu("File", file_menu)
-                menu.add_menu("PointGraphNet", pointgraphnet_menu)
+                menu.add_menu("PointNormalNet", PointNormalNet_menu)
                 menu.add_menu("Settings", settings_menu)
                 # Don't include help menu unless it has something more than
                 # About...
             else:
                 menu.add_menu("File", file_menu)
-                menu.add_menu("PointGraphNet", pointgraphnet_menu)
+                menu.add_menu("PointNormalNet", PointNormalNet_menu)
                 menu.add_menu("Settings", settings_menu)
                 menu.add_menu("Help", help_menu)
             gui.Application.instance.menubar = menu
@@ -474,7 +474,7 @@ class AppWindow:
         w.set_on_menu_item_activated(AppWindow.MENU_LOAD_POINTS, self._on_load_points)
         # ----
 
-        # PointGraphNet Stuff
+        # PointNormalNet Stuff
         self.ckpt_dir = DEFAULT_CKPT_DIR
         self.input_file = None
         self.noise_thresh = NOISE_THRESH
@@ -506,7 +506,7 @@ class AppWindow:
                 "No model found at the default checkpoint directory. Please load a model before performing inference."
             )
 
-    ## PointGraphNet Stuff
+    ## PointNormalNet Stuff
     def load_model(self, ckpt_dir, device):
         try:
             self.model, self.params = load_model(ckpt_dir=ckpt_dir, device=device)
@@ -648,7 +648,7 @@ class AppWindow:
             dlg_layout.add_child(
                 gui.Label(
                     "No model loaded. Please load a model first! "
-                    "(PointGraphNet -> Load Model)\n"
+                    "(PointNormalNet -> Load Model)\n"
                 )
             )
             self.failure_message = ""
@@ -982,13 +982,13 @@ class AppWindow:
         dlg_layout = gui.Vert(em, gui.Margins(em, em, em, em))
         dlg_layout.add_child(
             gui.Label(
-                "PointGraphNet Demo\n"
+                "PointNormalNet Demo\n"
                 "By: Suyog S. Jadhav, May 2023\n"
                 "************************************\n\n"
                 "How to use:\n"
-                "1. Load one of the pretrained models by clicking on PointGraphNet->Load Model."
+                "1. Load one of the pretrained models by clicking on PointNormalNet->Load Model."
                 "You can find the pretrained models under core/static/weights folder.\n"
-                "2. Run the model on a point cloud file by clicking on PointGraphNet->Perform 3D Reconstruction... . These formats are supported:"
+                "2. Run the model on a point cloud file by clicking on PointNormalNet->Perform 3D Reconstruction... . These formats are supported:"
                 ".csv, .tsv, and .parquet. The file must have at least 3 columns for x, y, and z coordinates."
                 "If additional columns are there, make sure that the coordinates are marked with one of these common column headers:"
                 "[x, y, z], [X, Y, Z], ['x [nm]', 'y [nm]', 'z [nm]'], ['X [nm]', 'Y [nm]', 'Z [nm]'\n"

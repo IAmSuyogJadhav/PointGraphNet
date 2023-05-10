@@ -1,4 +1,4 @@
-# PointGraphNet
+# PointNormalNet
 
 ```mermaid
 graph TD;
