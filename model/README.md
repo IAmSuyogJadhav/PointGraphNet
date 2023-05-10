@@ -22,7 +22,10 @@ post("Post processing")-->Open3D;
 ```
 
 ## Usage Instructions
-This directory holds the trained weights for the model, along with some example input data (in `examples/`), and some scripts for testing the model. You can utilise the model in multiple ways:
+This directory holds the trained weights for the model, along with some example input data (in `examples/`), and some scripts for testing the model. 
+The inference scripts are optimized to work with any sized data on any system, as long as the model is able to fit in the GPU/CPU memory. The model takes in a point cloud as input, and outputs a 3D reconstruction of the object.If the point cloud is too large, the script will automatically split it into smaller batches and run the model on each batch. The output of each batch is then merged together to form the final output. The default batch size is set to 40k points, and can be changed by changing the `MAX_N` variable in `inference.py`.
+
+You can utilise the model in multiple ways:
 
 ### 1. OpenGL-based Open3D GUI
 Open3D provides a decent GUI interface for visualizing 3D objects. There is a small GUI demo inside `demo_gui.py`. You can run it with the following command:

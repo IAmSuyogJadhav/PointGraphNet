@@ -4,7 +4,7 @@ Supplementary code for INF-3990 Master's Thesis: "Reconstructing 3D geometries o
 Each directory has its own README file with more details. The README for the simulator is [here](simulation/README.md), and the README for the model is [here](model/README.md).
 
 ## Setup
-It is recommended to have an NVIDIA GPU to run the model. The model has been tested on NVIDIA A100-40GB, and takes up 1822 MiB of GPU memory. The simulator does not require a GPU, but if you have one, it utilises `cupy` to speed up the computation.
+It is recommended to have an NVIDIA GPU to run the model. The model has been tested on NVIDIA A100-40GB, and takes up 1822 MiB of GPU memory when loaded. The simulator does not require a GPU, but if you have one, it utilises `cupy` to speed up the computation.
 
 Install the dependencies using `pip`, preferably in a virtual environment:
 ```bash
