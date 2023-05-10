@@ -12,7 +12,7 @@ from core import (
     get_dataset,
     Model,
     get_loss_fn,
-    get_metric_fn,
+    # get_metric_fn,
     Dataloader,
     train,
     write_ply,
@@ -152,13 +152,13 @@ loss = get_loss_fn(
 )
 
 # Create the metric function
-def dummy(x, y):  # Use dummy metric (increases training speed)
+def dummy(x, y):  # Use dummy metric (something is wrong with the metric functions coded)
     return torch.tensor(0.0).cuda(), torch.tensor(0.0).cuda(), torch.tensor(0.0).cuda()
 
 
 # metric = get_metric_fn(strategy=params["model"]["strategy"], K=params["model"]["K"])
 metric = dummy
-print("*************** USING DUMMY METRIC ***************")
+# print("*************** USING DUMMY METRIC ***************")
 
 # Main training loop
 train(model, optimizer, scheduler, loss, metric, train_loader, val_loader, params)
