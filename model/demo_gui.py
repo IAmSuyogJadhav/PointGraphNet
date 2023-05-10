@@ -1,3 +1,6 @@
+# PointGraphNet Demo, adapted from https://github.com/isl-org/Open3D/blob/master/examples/python/visualization/vis_gui.py
+# Modified by: Suyog Jadhav, 10-05-2023
+
 # ----------------------------------------------------------------------------
 # -                        Open3D: www.open3d.org                            -
 # ----------------------------------------------------------------------------
@@ -13,6 +16,7 @@ import open3d.visualization.rendering as rendering
 import os
 import platform
 import sys
+from inference import *
 
 isMacOS = (platform.system() == "Darwin")
 
@@ -190,6 +194,8 @@ class AppWindow:
     MENU_QUIT = 3
     MENU_SHOW_SETTINGS = 11
     MENU_ABOUT = 21
+    MENU_LOAD_MODEL = 31
+    MENU_LOAD_POINTS = 32
 
     DEFAULT_IBL = "default"
 
@@ -204,7 +210,7 @@ class AppWindow:
         self.settings.new_ibl_name = resource_path + "/" + AppWindow.DEFAULT_IBL
 
         self.window = gui.Application.instance.create_window(
-            "Open3D", width, height)
+            "PointGraphNet - Open3D", width, height)
         w = self.window  # to make the code more concise
 
         # 3D widget
@@ -418,7 +424,7 @@ class AppWindow:
                 app_menu.add_separator()
                 app_menu.add_item("Quit", AppWindow.MENU_QUIT)
             file_menu = gui.Menu()
-            file_menu.add_item("Open...", AppWindow.MENU_OPEN)
+            # file_menu.add_item("Open...", AppWindow.MENU_OPEN)
             file_menu.add_item("Export Current Image...", AppWindow.MENU_EXPORT)
             if not isMacOS:
                 file_menu.add_separator()
@@ -430,6 +436,11 @@ class AppWindow:
             help_menu = gui.Menu()
             help_menu.add_item("About", AppWindow.MENU_ABOUT)
 
+            pointgraphnet_menu = gui.Menu()
+            pointgraphnet_menu.add_item("Load Model", AppWindow.MENU_LOAD_MODEL)
+            pointgraphnet_menu.add_item("Perform 3D Reconstruction...", AppWindow.MENU_LOAD_POINTS)
+
+
             menu = gui.Menu()
             if isMacOS:
                 # macOS will name the first menu item for the running application
@@ -438,11 +449,13 @@ class AppWindow:
                 # About..., Preferences..., and Quit menu items typically go.
                 menu.add_menu("Example", app_menu)
                 menu.add_menu("File", file_menu)
+                menu.add_menu("PointGraphNet", pointgraphnet_menu)
                 menu.add_menu("Settings", settings_menu)
                 # Don't include help menu unless it has something more than
                 # About...
             else:
                 menu.add_menu("File", file_menu)
+                menu.add_menu("PointGraphNet", pointgraphnet_menu)
                 menu.add_menu("Settings", settings_menu)
                 menu.add_menu("Help", help_menu)
             gui.Application.instance.menubar = menu
@@ -457,9 +470,272 @@ class AppWindow:
         w.set_on_menu_item_activated(AppWindow.MENU_SHOW_SETTINGS,
                                      self._on_menu_toggle_settings_panel)
         w.set_on_menu_item_activated(AppWindow.MENU_ABOUT, self._on_menu_about)
+        w.set_on_menu_item_activated(AppWindow.MENU_LOAD_MODEL, self._on_load_model)
+        w.set_on_menu_item_activated(AppWindow.MENU_LOAD_POINTS, self._on_load_points)
         # ----
 
+        # PointGraphNet Stuff
+        self.ckpt_dir=DEFAULT_CKPT_DIR
+        self.input_file = None
+        self.noise_thresh = NOISE_THRESH
+        self.max_n = MAX_N
+        self.device = DEVICE
+
+        self.model = None
+        self.params = None
+        self.depth = 8
+        self.failure_message = ''
+
         self._apply_settings()
+
+        # Pre-load model
+        if os.path.isdir(self.ckpt_dir):
+            print('Loading model...')
+            self.load_model(self.ckpt_dir, self.device)
+            print('Done!') 
+            
+            # Show a message box stating that the model was loaded
+            self._show_message_box("Default model loaded successfully.")
+        else:
+            print('No model found at specified checkpoint directory. Please load a model before performing inference.')
+
+            # Show a message box stating that the model was not loaded
+            self._show_message_box("No model found at the default checkpoint directory. Please load a model before performing inference.")
+
+
+
+    ## PointGraphNet Stuff
+    def load_model(self, ckpt_dir, device):
+        try:
+            self.model, self.params = load_model(ckpt_dir=ckpt_dir, device=device)
+            return 0
+        except Exception as e:
+            print(e)
+            self.failure_message = str(e)
+            return 1
+    
+    def do_inference(self, input_file):
+        # Load points
+        print(f'Loading points from {input_file}...')
+        graphs = load_points(input_file, self.max_n)
+        if graphs is None:
+            print('Failed to load points. Exiting...')
+            self.failure_message = 'Failed to load points. Make sure the file is in the correct format.'
+            return 1
+        print('Done!')
+
+        # Perform inference
+        print('Performing inference...')
+        dfs = []
+        for i, g in enumerate(graphs):
+            df = infer(self.model, g, self.params['model']['strategy'], self.noise_thresh, self.device)
+            dfs.append(df)
+            print(f'{i+1}/{len(graphs)}', end='\r')
+        
+        df = pd.concat(dfs)
+
+        # Get rid of nans
+        df.dropna(inplace=True)
+
+        # Drop duplicates (if any)
+        df = df.drop_duplicates(subset=['x', 'y', 'z'], keep='first')
+        print('Done!')
+
+        # Get the 3D mesh and pcd
+        print('Generating mesh...')
+        mesh, pcd = get_3d_mesh(df, depth=self.depth, noise_label=NOISE_LABEL)
+        print('Done!')
+
+        # Clear the scene
+        self._scene.scene.clear_geometry()
+
+        # Add the mesh to the scene
+        try:
+            # self._scene.scene.add_model("__model__", mesh)
+            self._scene.scene.add_geometry("__model__", mesh, self.settings.material)
+
+            # Add the pcd to the scene
+            self._scene.scene.add_geometry("pcd", pcd, self.settings.material)
+
+            bounds = self._scene.scene.bounding_box
+            self._scene.setup_camera(60, bounds, bounds.get_center())
+        except Exception as e:
+            print(e)
+            self.failure_message = "Mesh visualization failed."
+            return 1
+        
+        # Add pcd to the scene, with transparency
+        # pcd.material = material.Material(
+        #    metallic=0.0,
+        #   roughness=0.5,
+        #   base_color=[0.0, 0.0, 1.0, 0.5],
+        #  alpha_mode=material.AlphaMode.BLEND,
+        # double_sided=True,
+        # blend=material.BlendMode.TRANSLUCENT,
+        # )
+        # self._scene.scene.add_geometry(pcd)        
+
+        return 0
+
+    def _on_load_model(self):
+        dlg = gui.FileDialog(gui.FileDialog.OPEN, "Choose file to load",
+                             self.window.theme)
+        dlg.add_filter(
+            ".pth",
+            "PyTorch model files (.pth)")
+        dlg.add_filter("", "All files")
+
+        # A file dialog MUST define on_cancel and on_done functions
+        dlg.set_on_cancel(self._on_file_dialog_cancel)
+        dlg.set_on_done(self._on_load_model_dialog_done)
+        self.window.show_dialog(dlg)
+
+    def _on_load_model_dialog_done(self, filename):
+        self.window.close_dialog()
+        self.ckpt_dir = os.path.dirname(filename)
+        ret = self.load_model(self.ckpt_dir, self.device)
+
+        # Show a message box
+        em = self.window.theme.font_size
+        dlg = gui.Dialog("Model")
+
+        # Add the text
+        dlg_layout = gui.Vert(em, gui.Margins(em, em, em, em))
+        dlg_layout.add_child(gui.Label(
+            "Model loaded successfully!" if ret == 0 else 
+            "Failed to load model! Error Details:\n" + self.failure_message))
+        self.failure_message = ''
+
+        # Add the Ok button. We need to define a callback function to handle
+        # the click.
+        ok = gui.Button("OK")
+        ok.set_on_clicked(self._on_about_ok)
+
+        # We want the Ok button to be an the right side, so we need to add
+        # a stretch item to the layout, otherwise the button will be the size
+        # of the entire row. A stretch item takes up as much space as it can,
+        # which forces the button to be its minimum size.
+        h = gui.Horiz()
+        h.add_stretch()
+        h.add_child(ok)
+        h.add_stretch()
+        dlg_layout.add_child(h)
+
+        dlg.add_child(dlg_layout)
+        self.window.show_dialog(dlg)
+
+    def _on_load_points(self):
+        if self.model is None:
+            # Show a message box
+            em = self.window.theme.font_size
+            dlg = gui.Dialog("Model")
+
+            # Add the text
+            dlg_layout = gui.Vert(em, gui.Margins(em, em, em, em))
+            dlg_layout.add_child(gui.Label(
+                "No model loaded. Please load a model first! "
+                "(PointGraphNet -> Load Model)\n"
+                ))
+            self.failure_message = ''
+
+            # Add the Ok button. We need to define a callback function to handle
+            # the click.
+            ok = gui.Button("OK")
+            ok.set_on_clicked(self._on_about_ok)
+
+            # We want the Ok button to be an the right side, so we need to add
+            # a stretch item to the layout, otherwise the button will be the size
+            # of the entire row. A stretch item takes up as much space as it can,
+            # which forces the button to be its minimum size.
+            h = gui.Horiz()
+            h.add_stretch()
+            h.add_child(ok)
+            h.add_stretch()
+            dlg_layout.add_child(h)
+
+            dlg.add_child(dlg_layout)
+            self.window.show_dialog(dlg)
+            return
+
+        dlg = gui.FileDialog(gui.FileDialog.OPEN, "Choose file to load",
+                                self.window.theme)
+        dlg.add_filter(
+            ".csv",
+            "Comma-separated values (.csv)")
+        dlg.add_filter(".tsv",
+            "Tab-separated values (.tsv)")
+        dlg.add_filter(".parquet",
+            "Apache Parquet (.parquet)")
+        dlg.add_filter("", "All files")
+
+        # A file dialog MUST define on_cancel and on_done functions
+        dlg.set_on_cancel(self._on_file_dialog_cancel)
+        dlg.set_on_done(self._on_load_points_dialog_done)
+        self.window.show_dialog(dlg)
+
+    def _on_load_points_dialog_done(self, filename):
+        self.window.close_dialog()
+        self.input_file = filename
+
+        # Run Inference
+        ret = self.do_inference(self.input_file)
+
+        # Show a message box
+        em = self.window.theme.font_size
+        dlg = gui.Dialog("Infer")
+
+        # Add the text
+        dlg_layout = gui.Vert(em, gui.Margins(em, em, em, em))
+        dlg_layout.add_child(gui.Label(
+            "Inference Done Successfully!" if ret == 0 else 
+            "Inference failed! Error Details:\n" + self.failure_message))
+        self.failure_message = ''
+
+        # Add the Ok button. We need to define a callback function to handle
+        # the click.
+        ok = gui.Button("OK")
+        ok.set_on_clicked(self._on_about_ok)
+
+        # We want the Ok button to be an the right side, so we need to add
+        # a stretch item to the layout, otherwise the button will be the size
+        # of the entire row. A stretch item takes up as much space as it can,
+        # which forces the button to be its minimum size.
+        h = gui.Horiz()
+        h.add_stretch()
+        h.add_child(ok)
+        h.add_stretch()
+        dlg_layout.add_child(h)
+
+        dlg.add_child(dlg_layout)
+        self.window.show_dialog(dlg)
+
+    def _show_message_box(self, message, title="Message"):
+        # Show a message box
+        em = self.window.theme.font_size
+        dlg = gui.Dialog(title)
+
+        # Add the text
+        dlg_layout = gui.Vert(em, gui.Margins(em, em, em, em))
+        dlg_layout.add_child(gui.Label(message))
+
+        # Add the Ok button. We need to define a callback function to handle
+        # the click.
+        ok = gui.Button("OK")
+        ok.set_on_clicked(self._on_about_ok)
+
+        # We want the Ok button to be an the right side, so we need to add
+        # a stretch item to the layout, otherwise the button will be the size
+        # of the entire row. A stretch item takes up as much space as it can,
+        # which forces the button to be its minimum size.
+        h = gui.Horiz()
+        h.add_stretch()
+        h.add_child(ok)
+        h.add_stretch()
+        dlg_layout.add_child(h)
+
+        dlg.add_child(dlg_layout)
+        self.window.show_dialog(dlg)
+        return
 
     def _apply_settings(self):
         bg_color = [
@@ -677,7 +953,24 @@ class AppWindow:
 
         # Add the text
         dlg_layout = gui.Vert(em, gui.Margins(em, em, em, em))
-        dlg_layout.add_child(gui.Label("Open3D GUI Example"))
+        dlg_layout.add_child(gui.Label(
+            "PointGraphNet Demo\n"
+            "By: Suyog S. Jadhav, May 2023\n"
+            "************************************\n\n"
+            "How to use:\n"
+            "1. Load one of the pretrained models by clicking on PointGraphNet->Load Model."
+            "You can find the pretrained models under core/static/weights folder.\n"
+            "2. Run the model on a point cloud file by clicking on PointGraphNet->Perform 3D Reconstruction... . These formats are supported:"
+            ".csv, .tsv, and .parquet. The file must have at least 3 columns for x, y, and z coordinates."
+            "If additional columns are there, make sure that the coordinates are marked with one of these common column headers:"
+            "[x, y, z], [X, Y, Z], ['x [nm]', 'y [nm]', 'z [nm]'], ['X [nm]', 'Y [nm]', 'Z [nm]'\n"
+            "You can some sample files under examples/\n"
+            "3. The output is shown on the demo screen, overlaid on the input point cloud.\n\n"
+            "************************************\n\n"
+            "Credits: This demo GUI is modified from Open3D's demo GUI example. Original source:"
+            "https://github.com/isl-org/Open3D/blob/master/examples/python/visualization/vis_gui.py"
+
+            ))
 
         # Add the Ok button. We need to define a callback function to handle
         # the click.
