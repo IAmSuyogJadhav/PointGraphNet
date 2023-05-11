@@ -48,7 +48,7 @@ def load_model(ckpt_dir: str, device: torch.device = DEVICE):
     return model, params
 
 
-def load_points(path: str, max_n: int = MAX_N, label: str = LABEL):
+def load_points(path: str, max_n: int = MAX_N, label: str = LABEL, verbose: bool = True):
     """
     Load the points from the given path.
 
@@ -58,7 +58,7 @@ def load_points(path: str, max_n: int = MAX_N, label: str = LABEL):
         label (str): The label to use. Defaults to LABEL.
 
     Returns:
-        points (pd.DataFrame): The points.
+        graphs (list): The list of PointsGraphs.
     """
     if path.endswith(".csv"):
         points = pd.read_csv(path)
@@ -70,12 +70,12 @@ def load_points(path: str, max_n: int = MAX_N, label: str = LABEL):
         print("Unsupported file format. Please use csv, tsv or parquet.")
         return None
 
-    graph = to_graph(points, max_n=max_n, label=label)
+    graph = to_graph(points, max_n=max_n, label=label, verbose=verbose)
     return graph
 
 
 def to_graph(
-    points: pd.DataFrame, max_n: int = MAX_N, label: str = LABEL, device: str = DEVICE
+    points: pd.DataFrame, max_n: int = MAX_N, label: str = LABEL, device: str = DEVICE, verbose: bool = True
 ):
     """
     Convert the points to PointsGraph format.
@@ -150,7 +150,8 @@ def to_graph(
         d["phi"] = 0
         graphs.append(PointsGraph(d, pick_first_n=None, device=device))
 
-    print(f"Loaded {n_points} points succesfully.")
+    if verbose:
+        print(f"Loaded {n_points} points succesfully.")
 
     return graphs
 
