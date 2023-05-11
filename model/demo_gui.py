@@ -19,7 +19,8 @@ import sys
 from inference import *
 
 isMacOS = platform.system() == "Darwin"
-
+MAX_N_LIMITS = (1000, 200_000)
+DEPTH_LIMITS = (1, 24)
 
 class Settings:
     UNLIT = "defaultUnlit"
@@ -196,6 +197,10 @@ class AppWindow:
     MENU_ABOUT = 21
     MENU_LOAD_MODEL = 31
     MENU_LOAD_POINTS = 32
+    MENU_EXPORT_POINTS = 33
+    MENU_EXPORT_POINTS_CSV = 34
+    MENU_EXPORT_POINTS_NOMESH = 35
+    MENU_CONFIGURE = 41
 
     DEFAULT_IBL = "default"
 
@@ -425,7 +430,20 @@ class AppWindow:
                 app_menu.add_item("Quit", AppWindow.MENU_QUIT)
             file_menu = gui.Menu()
             # file_menu.add_item("Open...", AppWindow.MENU_OPEN)
-            file_menu.add_item("Export Current Image...", AppWindow.MENU_EXPORT)
+            file_menu.add_item(
+                "Load Point Cloud...", AppWindow.MENU_LOAD_POINTS
+            )
+            file_menu.add_item(
+                "Export 3D object (.ply)...", AppWindow.MENU_EXPORT_POINTS
+            )
+            file_menu.add_item(
+                "Export 3D point cloud (no surface information) (.ply)...", AppWindow.MENU_EXPORT_POINTS_NOMESH
+            )
+            file_menu.add_item(
+                "Export point cloud as csv (x,y,z,nx,ny,nz)...", AppWindow.MENU_EXPORT_POINTS_CSV
+            )
+            file_menu.add_item("Export Current Scene as PNG...", AppWindow.MENU_EXPORT)
+            
             if not isMacOS:
                 file_menu.add_separator()
                 file_menu.add_item("Quit", AppWindow.MENU_QUIT)
@@ -437,9 +455,11 @@ class AppWindow:
 
             PointNormalNet_menu = gui.Menu()
             PointNormalNet_menu.add_item("Load Model", AppWindow.MENU_LOAD_MODEL)
+            PointNormalNet_menu.add_separator()
             PointNormalNet_menu.add_item(
-                "Perform 3D Reconstruction...", AppWindow.MENU_LOAD_POINTS
+                "Configure PointNormalNet...", AppWindow.MENU_CONFIGURE
             )
+
 
             menu = gui.Menu()
             if isMacOS:
@@ -450,13 +470,14 @@ class AppWindow:
                 menu.add_menu("Example", app_menu)
                 menu.add_menu("File", file_menu)
                 menu.add_menu("PointNormalNet", PointNormalNet_menu)
-                menu.add_menu("Settings", settings_menu)
+                menu.add_menu("View", settings_menu)
+                menu.add_menu("Help", help_menu)
                 # Don't include help menu unless it has something more than
                 # About...
             else:
                 menu.add_menu("File", file_menu)
                 menu.add_menu("PointNormalNet", PointNormalNet_menu)
-                menu.add_menu("Settings", settings_menu)
+                menu.add_menu("View", settings_menu)
                 menu.add_menu("Help", help_menu)
             gui.Application.instance.menubar = menu
 
@@ -469,9 +490,14 @@ class AppWindow:
         w.set_on_menu_item_activated(
             AppWindow.MENU_SHOW_SETTINGS, self._on_menu_toggle_settings_panel
         )
+
         w.set_on_menu_item_activated(AppWindow.MENU_ABOUT, self._on_menu_about)
         w.set_on_menu_item_activated(AppWindow.MENU_LOAD_MODEL, self._on_load_model)
         w.set_on_menu_item_activated(AppWindow.MENU_LOAD_POINTS, self._on_load_points)
+        w.set_on_menu_item_activated(AppWindow.MENU_EXPORT_POINTS, self._on_export_points)
+        w.set_on_menu_item_activated(AppWindow.MENU_EXPORT_POINTS_NOMESH, self._on_export_points_nomesh)
+        w.set_on_menu_item_activated(AppWindow.MENU_EXPORT_POINTS_CSV, self._on_export_points_csv)
+        w.set_on_menu_item_activated(AppWindow.MENU_CONFIGURE, self._on_configure)
         # ----
 
         # PointNormalNet Stuff
@@ -486,7 +512,15 @@ class AppWindow:
         self.depth = 8
         self.failure_message = ""
 
+        self.curr_mesh = None
+        self.curr_df = None
+
         self._apply_settings()
+
+        # Make sure export_points menu item is disabled until points are loaded
+        gui.Application.instance.menubar.set_enabled(AppWindow.MENU_EXPORT_POINTS, False)
+        gui.Application.instance.menubar.set_enabled(AppWindow.MENU_EXPORT_POINTS_NOMESH, False)
+        gui.Application.instance.menubar.set_enabled(AppWindow.MENU_EXPORT_POINTS_CSV, False)
 
         # Pre-load model
         if os.path.isdir(self.ckpt_dir):
@@ -495,7 +529,7 @@ class AppWindow:
             print("Done!")
 
             # Show a message box stating that the model was loaded
-            self._show_message_box("Default model loaded successfully.")
+            self._show_message_box("Default model loaded successfully. Go to File > Load Point Cloud... to load a point cloud.")
         else:
             print(
                 "No model found at specified checkpoint directory. Please load a model before performing inference."
@@ -507,6 +541,96 @@ class AppWindow:
             )
 
     ## PointNormalNet Stuff
+    def _on_configure(self):
+        # Create a new window to adjust parameters
+        # self.noise_thresh = slider from 0 to 1
+        # self.max_n = any integer > 1000, max 1_000_000
+        # self.device = dropdown with options "cpu" and "cuda"
+        
+        noise_thresh_slider = gui.Slider(gui.Slider.DOUBLE)
+        noise_thresh_slider.set_limits(0, 1)
+        noise_thresh_slider.double_value = self.noise_thresh
+        noise_thresh_slider.set_on_value_changed(self._on_noise_thresh_changed)
+
+        max_n_slider = gui.Slider(gui.Slider.INT)
+        max_n_slider.set_limits(*MAX_N_LIMITS)
+        max_n_slider.int_value = self.max_n
+        max_n_slider.set_on_value_changed(self._on_max_n_changed)
+
+        depth_slider = gui.Slider(gui.Slider.INT)
+        depth_slider.set_limits(*DEPTH_LIMITS)
+        depth_slider.int_value = self.depth
+        depth_slider.set_on_value_changed(self._on_depth_changed)
+
+        # device_dropdown = gui.Combobox()
+        # device_dropdown.add_item("cpu")
+        # device_dropdown.add_item("cuda")
+        # device_dropdown.set_on_selection_changed(self._on_device_changed)
+
+        
+        # Show a message box
+        em = self.window.theme.font_size
+        dlg = gui.Dialog('Configure')
+
+        # Add the text
+        dlg_layout = gui.Vert(em, gui.Margins(em, em, em, em))
+        
+        dlg_layout.add_child(gui.Label('Noise threshold (lower == more noise in output)'))
+        dlg_layout.add_child(noise_thresh_slider)
+
+        dlg_layout.add_child(gui.Label('Max points per batch (lower for less memory usage) (Caution: Higher values will cause CUDA out of memory errors)'))
+        dlg_layout.add_child(max_n_slider)
+
+        dlg_layout.add_child(gui.Label('Depth (lower values are faster, and produce more "rounded" surface, higher values introduce sharper kinks)'))
+        dlg_layout.add_child(depth_slider)
+
+        # Add the Ok button. We need to define a callback function to handle
+        # the click.
+        re_run = gui.Button("Update Reconstruction")
+        re_run.set_on_clicked(self._on_re_run)
+
+        ok = gui.Button("Save and Close")
+        ok.set_on_clicked(self._on_about_ok)
+
+        # We want the Ok button to be an the right side, so we need to add
+        # a stretch item to the layout, otherwise the button will be the size
+        # of the entire row. A stretch item takes up as much space as it can,
+        # which forces the button to be its minimum size.
+        h = gui.Horiz()
+        h.add_stretch()
+        if self.model is not None and self.input_file is not None:
+            h.add_child(re_run)
+            h.add_stretch()
+        h.add_child(ok)
+        h.add_stretch()
+        dlg_layout.add_child(h)
+
+        dlg.add_child(dlg_layout)
+        self.window.show_dialog(dlg)
+        return
+    
+    def _on_noise_thresh_changed(self, val):
+        self.noise_thresh = val
+        return
+    
+    def _on_max_n_changed(self, val):
+        self.max_n = val
+        return
+    
+    def _on_depth_changed(self, val):
+        self.depth = int(val)
+        return
+    
+    def _on_re_run(self):
+        self.window.close_dialog()
+        self._show_message_box("Updating Reconstruction...")
+        ret = self.do_inference(self.input_file)
+        self.window.close_dialog()
+        if ret == 0:
+            self._show_message_box("Updated succesfully!")
+        else:
+            self._show_message_box("Failed to update!")
+
     def load_model(self, ckpt_dir, device):
         try:
             self.model, self.params = load_model(ckpt_dir=ckpt_dir, device=device)
@@ -529,38 +653,43 @@ class AppWindow:
         print("Done!")
 
         # Perform inference
-        print("Performing inference...")
-        dfs = []
-        for i, g in enumerate(graphs):
-            df = infer(
-                self.model,
-                g,
-                self.params["model"]["strategy"],
-                self.noise_thresh,
-                self.device,
-            )
-            dfs.append(df)
-            print(f"{i+1}/{len(graphs)}", end="\r")
+        try:
+            print("Performing inference...")
+            dfs = []
+            for i, g in enumerate(graphs):
+                df = infer(
+                    self.model,
+                    g,
+                    self.params["model"]["strategy"],
+                    self.noise_thresh,
+                    self.device,
+                )
+                dfs.append(df)
+                print(f"{i+1}/{len(graphs)}", end="\r")
 
-        df = pd.concat(dfs)
+            df = pd.concat(dfs)
 
-        # Get rid of nans
-        df.dropna(inplace=True)
+            # Get rid of nans
+            df.dropna(inplace=True)
 
-        # Drop duplicates (if any)
-        df = df.drop_duplicates(subset=["x", "y", "z"], keep="first")
-        print("Done!")
+            # Drop duplicates (if any)
+            df = df.drop_duplicates(subset=["x", "y", "z"], keep="first")
+            print("Done!")
 
-        # Get the 3D mesh and pcd
-        print("Generating mesh...")
-        mesh, pcd = get_3d_mesh(df, depth=self.depth, noise_label=NOISE_LABEL)
-        print("Done!")
-
-        # Clear the scene
-        self._scene.scene.clear_geometry()
+            # Get the 3D mesh and pcd
+            print("Generating mesh...")
+            mesh, pcd = get_3d_mesh(df, depth=self.depth, noise_label=NOISE_LABEL)
+            print("Done!")
+        except Exception as e:
+            print(e)
+            self.failure_message = str(e)
+            return 1
 
         # Add the mesh to the scene
         try:
+            # Clear the scene
+            self._scene.scene.clear_geometry()
+            
             # self._scene.scene.add_model("__model__", mesh)
             self._scene.scene.add_geometry("__model__", mesh, self.settings.material)
 
@@ -569,6 +698,10 @@ class AppWindow:
 
             bounds = self._scene.scene.bounding_box
             self._scene.setup_camera(60, bounds, bounds.get_center())
+
+            # Save mesh and the df
+            self.curr_mesh = mesh
+            self.curr_df = df
         except Exception as e:
             print(e)
             self.failure_message = "Mesh visualization failed."
@@ -585,6 +718,7 @@ class AppWindow:
         # )
         # self._scene.scene.add_geometry(pcd)
 
+        # Enable export_points menu item
         return 0
 
     def _on_load_model(self):
@@ -692,6 +826,12 @@ class AppWindow:
         # Run Inference
         ret = self.do_inference(self.input_file)
 
+        # Enable export_points menu item if inference is successful
+        if ret == 0:
+            gui.Application.instance.menubar.set_enabled(AppWindow.MENU_EXPORT_POINTS, True)
+            gui.Application.instance.menubar.set_enabled(AppWindow.MENU_EXPORT_POINTS_NOMESH, True)
+            gui.Application.instance.menubar.set_enabled(AppWindow.MENU_EXPORT_POINTS_CSV, True)
+
         # Show a message box
         em = self.window.theme.font_size
         dlg = gui.Dialog("Infer")
@@ -725,7 +865,64 @@ class AppWindow:
         dlg.add_child(dlg_layout)
         self.window.show_dialog(dlg)
 
-    def _show_message_box(self, message, title="Message"):
+    def _on_export_points(self):
+        dlg = gui.FileDialog(
+            gui.FileDialog.SAVE, "Choose where to save", self.window.theme
+        )
+        dlg.add_filter(".ply", "ASCII PLY files (.ply)")
+        dlg.set_on_cancel(self._on_file_dialog_cancel)
+        dlg.set_on_done(self._on_export_points_dialog_done)
+        self.window.show_dialog(dlg)
+
+    def _on_export_points_dialog_done(self, filename):
+        self.window.close_dialog()
+        current_mesh = self.curr_mesh
+        if current_mesh is None:
+            self._show_message_box("No mesh loaded in the scene. Please load a point cloud first!")
+            return
+        o3d.io.write_triangle_mesh(filename, current_mesh, write_vertex_normals=True, write_ascii=True)
+
+    def _on_export_points_nomesh(self):
+        dlg = gui.FileDialog(
+            gui.FileDialog.SAVE, "Choose where to save", self.window.theme
+        )
+        dlg.add_filter(".ply", "ASCII PLY files (.ply)")
+        dlg.set_on_cancel(self._on_file_dialog_cancel)
+        dlg.set_on_done(self._on_export_points_nomesh_dialog_done)
+        self.window.show_dialog(dlg)
+    
+    def _on_export_points_nomesh_dialog_done(self, filename):
+        self.window.close_dialog()
+        current_df = self.curr_df
+        if current_df is None:
+            self._show_message_box("No mesh loaded in the scene. Please load a point cloud first!")
+            return
+        
+        write_ply(
+            current_df,
+            filename,
+            noise_label=NOISE_LABEL,
+        )
+
+    def _on_export_points_csv(self):
+        dlg = gui.FileDialog(
+            gui.FileDialog.SAVE, "Choose where to save", self.window.theme
+        )
+        dlg.add_filter(".csv", "Comma-separated values (.csv)")
+        dlg.set_on_cancel(self._on_file_dialog_cancel)
+        dlg.set_on_done(self._on_export_points_csv_dialog_done)
+        self.window.show_dialog(dlg)
+    
+    def _on_export_points_csv_dialog_done(self, filename):
+        self.window.close_dialog()
+        current_df = self.curr_df
+        if current_df is None:
+            self._show_message_box("No mesh loaded in the scene. Please load a point cloud first!")
+            return
+        
+        save_csv(current_df, filename)
+
+    def _show_message_box(self, message, title="Message", add_ok_button=True):
         # Show a message box
         em = self.window.theme.font_size
         dlg = gui.Dialog(title)
@@ -736,22 +933,25 @@ class AppWindow:
 
         # Add the Ok button. We need to define a callback function to handle
         # the click.
-        ok = gui.Button("OK")
-        ok.set_on_clicked(self._on_about_ok)
+        if add_ok_button:
+            ok = gui.Button("OK")
+            ok.set_on_clicked(self._on_about_ok)
 
-        # We want the Ok button to be an the right side, so we need to add
-        # a stretch item to the layout, otherwise the button will be the size
-        # of the entire row. A stretch item takes up as much space as it can,
-        # which forces the button to be its minimum size.
-        h = gui.Horiz()
-        h.add_stretch()
-        h.add_child(ok)
-        h.add_stretch()
-        dlg_layout.add_child(h)
+            # We want the Ok button to be an the right side, so we need to add
+            # a stretch item to the layout, otherwise the button will be the size
+            # of the entire row. A stretch item takes up as much space as it can,
+            # which forces the button to be its minimum size.
+            h = gui.Horiz()
+            h.add_stretch()
+            h.add_child(ok)
+            h.add_stretch()
+            dlg_layout.add_child(h)
 
         dlg.add_child(dlg_layout)
         self.window.show_dialog(dlg)
         return
+
+    # Rest of the Open3D GUI code
 
     def _apply_settings(self):
         bg_color = [
@@ -988,12 +1188,17 @@ class AppWindow:
                 "How to use:\n"
                 "1. Load one of the pretrained models by clicking on PointNormalNet->Load Model."
                 "You can find the pretrained models under core/static/weights folder.\n"
-                "2. Run the model on a point cloud file by clicking on PointNormalNet->Perform 3D Reconstruction... . These formats are supported:"
+                "2. Run the model on a point cloud file by clicking on File->Load Point Cloud... . These formats are supported:"
                 ".csv, .tsv, and .parquet. The file must have at least 3 columns for x, y, and z coordinates."
                 "If additional columns are there, make sure that the coordinates are marked with one of these common column headers:"
                 "[x, y, z], [X, Y, Z], ['x [nm]', 'y [nm]', 'z [nm]'], ['X [nm]', 'Y [nm]', 'Z [nm]'\n"
                 "You can some sample files under examples/\n"
-                "3. The output is shown on the demo screen, overlaid on the input point cloud.\n\n"
+                "3. The output is shown on the demo screen, overlaid on the input point cloud.\n"
+                "4. From the file menu, you can now export the reconstruction, either as a 3D object (has surface data) or as a point cloud (has points and their normals, but not the surface data). "
+                "If you wish, you can also export the point cloud with normals, as a CSV file. "
+                "You can also export just the current view as a PNG image.\n\n"
+                "Additionally, you can change the settings of the model by clicking on PointNormalNet->Configure PointNormalNet...\n"
+                "You can also adjust visualization parameters by using the on-screen controls.\n\n"
                 "************************************\n\n"
                 "Credits: This demo GUI is modified from Open3D's demo GUI example. Original source:"
                 "https://github.com/isl-org/Open3D/blob/master/examples/python/visualization/vis_gui.py"
