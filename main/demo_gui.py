@@ -525,11 +525,14 @@ class AppWindow:
         # Pre-load model
         if os.path.isdir(self.ckpt_dir):
             print("Loading model...")
-            self.load_model(self.ckpt_dir, self.device)
+            ret = self.load_model(self.ckpt_dir, self.device)
             print("Done!")
 
             # Show a message box stating that the model was loaded
-            self._show_message_box("Default model loaded successfully. Go to File > Load Point Cloud... to load a point cloud.")
+            if ret == 0:
+                self._show_message_box("Default model loaded successfully. Go to File > Load Point Cloud... to load a point cloud.")
+            else:
+                self._show_message_box("Could not load default model. Load a model before loading a point cloud. Error: " + self.failure_message)
         else:
             print(
                 "No model found at specified checkpoint directory. Please load a model before performing inference."
