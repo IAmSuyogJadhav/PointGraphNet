@@ -10,7 +10,8 @@ from tqdm.auto import tqdm
 
 # Some constants
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-DEFAULT_CKPT_DIR = "core/static/weights/strategy1_run2_v2_pgn"
+# DEFAULT_CKPT_DIR = "core/static/weights/strategy1_run2_v2_pgn"
+DEFAULT_CKPT_DIR = "core/static/weights/strategy2_run3_v2_pgn"
 MAX_N = 40000
 LABEL = "foreground"
 NOISE_LABEL = "noise"
@@ -66,6 +67,8 @@ def load_points(path: str, max_n: int = MAX_N, label: str = LABEL, verbose: bool
         points = pd.read_csv(path, sep="\t")
     elif path.endswith(".parquet"):
         points = pd.read_parquet(path)
+    elif path.endswith(".xyz"):
+        points = pd.read_csv(path, sep=" ", names=["x", "y", "z"])
     else:
         print("Unsupported file format. Please use csv, tsv or parquet.")
         return None
@@ -211,7 +214,7 @@ def infer(
     return df
 
 
-def get_3d_mesh(df: pd.DataFrame, depth: int = 8, noise_label: str = NOISE_LABEL):
+def get_3d_mesh(df: pd.DataFrame, depth: int = 8, noise_label: str = NOISE_LABEL, return_densities: bool = False):
     """
     Get the 3D mesh from the given dataframe.
 
@@ -219,6 +222,7 @@ def get_3d_mesh(df: pd.DataFrame, depth: int = 8, noise_label: str = NOISE_LABEL
         df (pd.DataFrame): The dataframe.
         depth (int): The depth of the mesh. Defaults to 8.
         noise_label (str): The noise label. Defaults to NOISE_LABEL.
+        return_densities (bool): Whether to return the densities. Defaults to False.
 
     Returns:
         mesh (o3d.geometry.TriangleMesh): The mesh.
@@ -234,7 +238,7 @@ def get_3d_mesh(df: pd.DataFrame, depth: int = 8, noise_label: str = NOISE_LABEL
     )
 
     # Create mesh
-    mesh, _ = o3d.geometry.TriangleMesh.create_from_point_cloud_poisson(
+    mesh, densities = o3d.geometry.TriangleMesh.create_from_point_cloud_poisson(
         pcd, depth=depth
     )
 
@@ -242,7 +246,26 @@ def get_3d_mesh(df: pd.DataFrame, depth: int = 8, noise_label: str = NOISE_LABEL
     pcd.points = o3d.utility.Vector3dVector(df[["x", "y", "z"]].values)
     pcd.normals = o3d.utility.Vector3dVector(df[["nx", "ny", "nz"]].values)
 
-    return mesh, pcd
+    # Return the densities if requested
+    if not return_densities:
+        return mesh, pcd
+    else:
+        return mesh, pcd, densities
+
+
+def clean_3d_mesh(mesh, remove_low_quantile, densities=None):
+    """
+    Clean the 3D mesh by removing low density vertices.
+
+    Args:
+        mesh (o3d.geometry.TriangleMesh): The mesh.
+        remove_low_quantile (float): The quantile to use for removing low density vertices.
+        densities (np.ndarray): The densities. If None, they will be computed. Defaults to None.
+    """
+    vertices_to_remove = densities < np.quantile(densities, remove_low_quantile)
+    mesh.remove_vertices_by_mask(vertices_to_remove)
+    # mesh.fill_holes()
+    return mesh
 
 
 def save_3d(
@@ -336,7 +359,7 @@ if __name__ == "__main__":
         "--input",
         type=str,
         required=True,
-        help="Path to the input file (csv/tsv/parquet with at least three columns: x, y, z). "
+        help="Path to the input file (csv/tsv/parquet/xyz with at least three columns: x, y, z). "
         "Header row is optional if only three columns are present. Can automatically detect these common sets of column headers: "
         '["x", "y", "z"], ["X", "Y", "Z"], ["x [nm]", "y [nm]", "z [nm]"], ["X [nm]", "Y [nm]", "Z [nm]"]',
     )

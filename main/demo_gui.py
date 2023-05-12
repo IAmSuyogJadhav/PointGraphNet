@@ -17,10 +17,12 @@ import os
 import platform
 import sys
 from inference import *
+import copy
 
 isMacOS = platform.system() == "Darwin"
 MAX_N_LIMITS = (1000, 200_000)
 DEPTH_LIMITS = (1, 24)
+CLEAN_MESH_AREA_THRESH = 0.1
 
 class Settings:
     UNLIT = "defaultUnlit"
@@ -161,7 +163,9 @@ class Settings:
             Settings.NORMALS: rendering.MaterialRecord(),
             Settings.DEPTH: rendering.MaterialRecord(),
         }
+
         self._materials[Settings.LIT].base_color = [0.9, 0.9, 0.9, 1.0]
+        self._materials[Settings.LIT].has_alpha = True  #DEBUG
         self._materials[Settings.LIT].shader = Settings.LIT
         self._materials[Settings.UNLIT].base_color = [0.9, 0.9, 0.9, 1.0]
         self._materials[Settings.UNLIT].shader = Settings.UNLIT
@@ -402,6 +406,14 @@ class AppWindow:
         grid.add_child(self._material_color)
         grid.add_child(gui.Label("Point size"))
         grid.add_child(self._point_size)
+
+        # Slider to adjust remove_large_triangles
+        grid.add_child(gui.Label("Remove low density vertices"))
+        self.clean_mesh_slider = gui.NumberEdit(gui.NumberEdit.DOUBLE)
+        self.clean_mesh_slider.set_limits(0.0, 0.9)
+        self.clean_mesh_slider.set_on_value_changed(self._on_clean_mesh_slider_changed)
+        grid.add_child(self.clean_mesh_slider)
+
         material_settings.add_child(grid)
 
         self._settings_panel.add_fixed(separation_height)
@@ -429,7 +441,6 @@ class AppWindow:
                 app_menu.add_separator()
                 app_menu.add_item("Quit", AppWindow.MENU_QUIT)
             file_menu = gui.Menu()
-            # file_menu.add_item("Open...", AppWindow.MENU_OPEN)
             file_menu.add_item(
                 "Load Point Cloud...", AppWindow.MENU_LOAD_POINTS
             )
@@ -446,7 +457,11 @@ class AppWindow:
             
             if not isMacOS:
                 file_menu.add_separator()
+                file_menu.add_item("Open existing 3D Model (visualization only)...", AppWindow.MENU_OPEN)
                 file_menu.add_item("Quit", AppWindow.MENU_QUIT)
+            else:
+                file_menu.add_separator()
+                file_menu.add_item("Open existing 3D Model (visualization only)...", AppWindow.MENU_OPEN)
             settings_menu = gui.Menu()
             settings_menu.add_item("Lighting & Materials", AppWindow.MENU_SHOW_SETTINGS)
             settings_menu.set_checked(AppWindow.MENU_SHOW_SETTINGS, True)
@@ -513,7 +528,13 @@ class AppWindow:
         self.failure_message = ""
 
         self.curr_mesh = None
+        self.curr_clean_mesh = None
+        self.curr_densities = None
+        self.curr_pcd = None
         self.curr_df = None
+        self.remove_low_quantile = 0.00  # 0 = None
+
+        self.clean_mesh_slider.set_value(self.remove_low_quantile)
 
         self._apply_settings()
 
@@ -544,6 +565,34 @@ class AppWindow:
             )
 
     ## PointNormalNet Stuff
+    def _on_clean_mesh_slider_changed(self, value):
+        self.remove_low_quantile = value
+        if self.curr_mesh is not None:
+            print("Cleaning mesh...")
+            mesh_copy = copy.deepcopy(self.curr_mesh)
+            clean_3d_mesh(self.curr_mesh, remove_low_quantile=self.remove_low_quantile, densities=self.curr_densities)
+            
+            # Update the scene
+            print("Updating scene...")
+            
+            # Clear the scene
+            self._scene.scene.clear_geometry()
+            
+            # self._scene.scene.add_model("__model__", mesh)
+            self._scene.scene.add_geometry("__model__", self.curr_mesh, self.settings.material)
+
+            # Add the pcd to the scene
+            self._scene.scene.add_geometry("pcd", self.curr_pcd, self.settings.material)
+
+            bounds = self._scene.scene.bounding_box
+            self._scene.setup_camera(60, bounds, bounds.get_center())
+
+            # Save the clean mesh
+            self.curr_clean_mesh = self.curr_mesh
+
+            # Replace the original mesh (we need original mesh for reverting back to original)
+            self.curr_mesh = mesh_copy
+
     def _on_configure(self):
         # Create a new window to adjust parameters
         # self.noise_thresh = slider from 0 to 1
@@ -681,7 +730,7 @@ class AppWindow:
 
             # Get the 3D mesh and pcd
             print("Generating mesh...")
-            mesh, pcd = get_3d_mesh(df, depth=self.depth, noise_label=NOISE_LABEL)
+            mesh, pcd, densities = get_3d_mesh(df, depth=self.depth, noise_label=NOISE_LABEL, return_densities=True)
             print("Done!")
         except Exception as e:
             print(e)
@@ -704,7 +753,10 @@ class AppWindow:
 
             # Save mesh and the df
             self.curr_mesh = mesh
+            self.curr_clean_mesh = mesh
             self.curr_df = df
+            self.curr_densities = densities
+            self.curr_pcd = pcd
         except Exception as e:
             print(e)
             self.failure_message = "Mesh visualization failed."
@@ -812,9 +864,14 @@ class AppWindow:
         dlg = gui.FileDialog(
             gui.FileDialog.OPEN, "Choose file to load", self.window.theme
         )
+        dlg.add_filter(
+            ".csv .tsv .parquet .xyz",
+            "Supported files (.csv .tsv .parquet .xyz)",
+        )
         dlg.add_filter(".csv", "Comma-separated values (.csv)")
         dlg.add_filter(".tsv", "Tab-separated values (.tsv)")
         dlg.add_filter(".parquet", "Apache Parquet (.parquet)")
+        dlg.add_filter(".xyz", "XYZ (space-separated values) (.xyz)")
         dlg.add_filter("", "All files")
 
         # A file dialog MUST define on_cancel and on_done functions
@@ -879,7 +936,8 @@ class AppWindow:
 
     def _on_export_points_dialog_done(self, filename):
         self.window.close_dialog()
-        current_mesh = self.curr_mesh
+        # current_mesh = self.curr_mesh
+        current_mesh = self.curr_clean_mesh
         if current_mesh is None:
             self._show_message_box("No mesh loaded in the scene. Please load a point cloud first!")
             return
@@ -1183,6 +1241,13 @@ class AppWindow:
 
         # Add the text
         dlg_layout = gui.Vert(em, gui.Margins(em, em, em, em))
+
+        # info
+        info = "".join([
+        f"Currently loaded model: {self.ckpt_dir}/model.pth\n" if self.ckpt_dir is not None else "",
+        f"Currently loaded point cloud: {self.input_file}\n"  if self.input_file is not None else ""
+        ])
+
         dlg_layout.add_child(
             gui.Label(
                 "PointNormalNet Demo\n"
@@ -1204,7 +1269,10 @@ class AppWindow:
                 "You can also adjust visualization parameters by using the on-screen controls.\n\n"
                 "************************************\n\n"
                 "Credits: This demo GUI is modified from Open3D's demo GUI example. Original source:"
-                "https://github.com/isl-org/Open3D/blob/master/examples/python/visualization/vis_gui.py"
+                "https://github.com/isl-org/Open3D/blob/master/examples/python/visualization/vis_gui.py\n"
+                "************************************\n\n"
+                f"{info}" + \
+                "************************************\n\n" if info else ""
             )
         )
 
