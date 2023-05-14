@@ -15,3 +15,6 @@ If you have an NVIDIA GPU, you can install `cupy` for faster performance in the 
 pip install cupy
 ```
 I used cupy==11.5.0 for this project. Additionally, you may also need to install the relevant CUDA libraries for your GPU.
+
+## Dataset
+The training as well as the test dataset can be downloaded from [here](https://cloud.suyogjadhav.com/index.php/s/LJ6DseSJySwdKYn). Both the datasets are in `.parquet` format and are ready to use for training and testing.
