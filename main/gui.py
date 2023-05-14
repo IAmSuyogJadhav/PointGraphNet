@@ -20,7 +20,7 @@ from inference import *
 import copy
 import sys
 
-if sys.argv[1] == 'debug':
+if len(sys.argv) > 1 and sys.argv[1] == 'debug':
     DEBUG = True
 else:
     DEBUG = False
