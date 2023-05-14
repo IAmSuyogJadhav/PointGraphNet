@@ -10,8 +10,8 @@ from tqdm.auto import tqdm
 
 # Some constants
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-# DEFAULT_CKPT_DIR = "core/static/weights/strategy1_run2_v2_pgn"
-DEFAULT_CKPT_DIR = "core/static/weights/strategy2_run3_v2_pgn"
+DEFAULT_CKPT_DIR = "core/static/weights/strategy1_run2_v2_pgn"
+# DEFAULT_CKPT_DIR = "core/static/weights/strategy2_run3_v2_pgn"
 MAX_N = 40000
 LABEL = "foreground"
 NOISE_LABEL = "noise"

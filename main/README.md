@@ -28,12 +28,12 @@ The inference scripts are optimized to work with any sized data on any system, a
 You can utilise the model in multiple ways:
 
 ### 1. OpenGL-based Open3D GUI
-Open3D provides a decent GUI interface for visualizing 3D objects. There is a small GUI demo inside `demo_gui.py`. You can run it with the following command:
+Open3D provides a decent GUI interface for visualizing 3D objects. The PointNormalNet model has been integrated into a usable GUI, and the code is available inside `gui.py`. You can run it with the following command:
 ```bash
-> python demo_gui.py
+> python gui.py
 ```
 
-The GUI is easy-to-use, and provides ease of visualization. Usage instructions for the GUI can be accessed by accessing the help menu. Here's a screenshot of the GUI:
+The GUI is easy-to-use, and provides ease of visualization. You can also customize some configuration options and tweak some post-processing parameters according to your liking in the GUI itself. Usage instructions for the GUI can be viewed by accessing the help menu. Here's a screenshot of the GUI:
 ![GUI Demo](core/static/gui.png)
 
 ### 2. Command-line interface

@@ -1,0 +1,123 @@
+ThunderSTORM (1.2-2014-04-09)
+
+Input:
+{
+  "title": "sequence-as-stack-MT0.N1.HD-AS-Exp.tif"
+}
+Camera settings:
+{
+  "offset": 200.0,
+  "isEmGain": false,
+  "photons2ADU": 3.6,
+  "pixelSize": 160.0,
+  "gain": 100.0
+}
+Analysis:
+{
+  "name": "Wavelet filter (B-Spline)",
+  "parameters": {
+    "prefsPrefix": "thunderstorm.filters.wave",
+    "trackedParameters": {
+      "scale": {
+        "defaultValue": 2.0,
+        "value": 2.0
+      },
+      "order": {
+        "defaultValue": 3,
+        "value": 3
+      }
+    }
+  }
+}
+{
+  "name": "Local maximum",
+  "connectivity": 8,
+  "threshold": "std(Wave.F1)",
+  "parameters": {
+    "prefsPrefix": "thunderstorm.detectors.locmax",
+    "trackedParameters": {
+      "connectivity": {
+        "defaultValue": "8-neighbourhood",
+        "value": "8-neighbourhood"
+      },
+      "threshold": {
+        "defaultValue": "std(Wave.F1)",
+        "value": "std(Wave.F1)"
+      }
+    }
+  }
+}
+{
+  "calibration": {
+    "name": "Polynomial calibration",
+    "angle": 0.03795857310531146,
+    "a1": 7.064296978677324E-6,
+    "b1": 1.4558295107728596,
+    "c1": -188.39195294408006,
+    "d1": 2.8352314700087545E-9,
+    "a2": 7.79678404964592E-6,
+    "b2": 1.364748118986645,
+    "c2": 178.60205940807748,
+    "d2": 0.0
+  },
+  "name": "PSF: Elliptical Gaussian (3D astigmatism)",
+  "crowdedField": {
+    "params": {
+      "prefsPrefix": "thunderstorm.estimators.dense.mfa",
+      "trackedParameters": {
+        "mfaenabled": {
+          "defaultValue": false,
+          "value": true
+        },
+        "keep_same_intensity": {
+          "defaultValue": true,
+          "value": false
+        },
+        "nmax": {
+          "defaultValue": 5,
+          "value": 5
+        },
+        "fixed_intensity": {
+          "defaultValue": false,
+          "value": true
+        },
+        "expected_intensity": {
+          "defaultValue": "500:2500",
+          "value": "500:2500"
+        },
+        "pvalue": {
+          "defaultValue": 1.0E-6,
+          "value": 1.0E-6
+        }
+      }
+    },
+    "name": "Multi-emitter fitting analysis"
+  },
+  "parameters": {
+    "prefsPrefix": "thunderstorm.estimators",
+    "trackedParameters": {
+      "sigma": {
+        "defaultValue": 1.6,
+        "value": 1.6
+      },
+      "fitradius": {
+        "defaultValue": 3,
+        "value": 3
+      },
+      "method": {
+        "defaultValue": "Least squares",
+        "value": "Least squares"
+      },
+      "calibrationpath": {
+        "defaultValue": "",
+        "value": "/home/anon/projects/thesis/final_code/main/examples/online/srm_epfl/thunderstorm_calib.yaml"
+      },
+      "full_image_fitting": {
+        "defaultValue": false,
+        "value": false
+      }
+    }
+  }
+}
+Post-processing:
+[]
